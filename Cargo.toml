@@ -6,4 +6,3 @@ edition = "2021"
 [dependencies]
 directories = "6.0.0"
 iced = "0.13.1"
-yt-dlp = "1.2.3"
