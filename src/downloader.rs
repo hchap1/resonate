@@ -125,6 +125,12 @@ impl Task {
             Action::Download => {
                 // Create a command that runs an instance of yt-dlp
 
+                let task_path = directory.join(PathBuf::from(format!("{}.mp3", self.target.id)));
+                println!("[WORKER] Using task_path {}", task_path.to_string_lossy().to_string());
+                if task_path.exists() {
+                    return;
+                }
+
                 let mut handle = Command::new("yt-dlp")
                     .arg("-f")
                     .arg("bestaudio")
@@ -133,9 +139,9 @@ impl Task {
                     .arg("mp3")
                     .arg("-o")
                     .arg(format!("{}/{}.mp3", directory.to_string_lossy().to_string(), self.target.id))
-                    .arg(format!("https://music.youtube.com/watch?v={}", &self.target.id))
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
+                    .arg(format!("https://music.youtube.com/watch?v={}", self.target.id))
+                    // .stdout(std::process::Stdio::null())
+                    // .stderr(std::process::Stdio::null())
                     .spawn().unwrap();
 
                 let _ = handle.wait();
