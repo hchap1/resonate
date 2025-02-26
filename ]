@@ -1,7 +1,6 @@
-use std::fs::create_dir_all;
+use std::{fs::create_dir_all, path::PathBuf};
 use directories::ProjectDirs;
 use rusqlite::{params, Connection};
-use std::path::PathBuf;
 
 use crate::music::Song;
 
@@ -57,18 +56,8 @@ impl Database {
 
     pub fn search_cached_song(&self, query: String) -> Vec<Song> {
         let mut pattern = self.connection.prepare("SELECT id FROM Songs WHERE name LIKE ? OR artist LIKE ?").unwrap();
-        pattern.query_map(params![query, query], |row| {
-            Ok({
-                let id = row.get::<_, String>(0).unwrap();
-                let name = row.get::<_, String>(1).unwrap();
-                let artist = row.get::<_, String>(2).unwrap();
-                let duration_s = row.get::<_, usize>(3).unwrap();
-                let downloaded = match row.get::<_, usize>(4) {
-                    Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(&id))) },
-                    Err(_) => None
-                };
-                Song::new(id, name, artist, duration_s, downloaded)
-            })
-        }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>()
+        let song_iter = pattern.query_map(params![query, query], |row| {
+            Ok(row.get::<_, String>(0))
+        });
     }
 }
