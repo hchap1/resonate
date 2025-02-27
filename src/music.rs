@@ -6,6 +6,7 @@ const DELIM: char = '͵'; // Unicode 0372, greek lower numeral sign
 pub struct Song {
     pub name: String,
     pub artist: String,
+    pub album: String,
     pub id: String,
     pub duration: usize,
     pub file: Option<PathBuf>
@@ -17,7 +18,7 @@ pub struct Playlist {
 }
 
 impl Song {
-    pub fn new(name: String, artist: String, id: String, duration: usize, file: Option<PathBuf>) -> Self {
-        Self { name, artist, id, duration, file }
+    pub fn new(name: String, artist: String, album: String, id: String, duration: usize, file: Option<PathBuf>) -> Self {
+        Self { name, artist, album, id, duration, file }
     }
 }

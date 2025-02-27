@@ -227,15 +227,45 @@ pub async fn search_youtube_music(query: String) -> Result<Vec<Song>, String> {
     let _ = caps.add_arg("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
 
     let driver = WebDriver::new(format!("http://localhost:{ip}"), caps).await.unwrap();
-
     driver.goto(format!("https://music.youtube.com/search?q={}", query)).await.unwrap();
+
+    let button = driver.find_all(By::Css("button.yt-spec-button-shape-next")).await.unwrap();
+
+    for element in button {
+        if element.text().await.unwrap() == "Show all" && element.is_clickable().await.unwrap() {
+            element.click().await.unwrap();
+            break;
+        }
+    }
+
+    sleep(Duration::from_secs(1));
+
     let video_titles = driver.find_all(By::ClassName("style-scope ytmusic-shelf-renderer")).await.unwrap();
 
     let mut options: Vec<Song> = Vec::new();
+    if video_titles.len() == 0 { return Ok(Vec::new()); }
 
-    for title in video_titles {
-        let lines = title.text().await.unwrap().lines().for_each(|x| println!("LINE: {x}"));
-        println!("----");
+    let songs = video_titles[0].clone();
+    let mut lines = songs.text().await.unwrap().lines().skip(1).map(|x| x.to_string()).collect::<Vec<String>>();
+
+    while lines.len() >= 7 {
+        let song = lines.remove(0);
+        let mut artist = lines.remove(0);
+        loop {
+            let item = lines.remove(0);
+            if item != " • " {
+                artist += item.as_str();
+            } else {
+                break;
+            }
+        }
+        let album = lines.remove(0);
+        lines.remove(0);
+        let time = lines.remove(0).split(':').map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>();
+        let duration = time[0] * 60 + time[1];
+        let _plays = lines.remove(0);
+
+        println!("Song found: {song} by {artist} in {album}. It is {duration} seconds long.");
     }
 
     driver.quit().await.unwrap();

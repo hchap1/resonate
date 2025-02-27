@@ -37,6 +37,7 @@ impl Database {
                 id TEXT PRIMARY KEY NOT NULL,
                 name TEXT NOT NULL,
                 artist TEXT NOT NULL,
+                album TEXT NOT NULL,
                 duration_s INT NOT NULL,
                 downloaded INT NOT NULL
             );
@@ -50,16 +51,21 @@ impl Database {
         let _ = self.connection.execute_batch(format!("
             BEGIN;
             INSERT INTO Songs
-            VALUES('{}', '{}', '{}', {}, {});
-        ", song.id, song.name, song.artist, song.duration, if song.file == None { 0 } else { 1 }
+            VALUES('{}', '{}', '{}', '{}', {}, {});
+        ", song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }
         ).as_str());
     }
 
+    pub fn add_songs_to_cache(&self, songs: &Vec<Song>) {
+        songs.iter().for_each(|song| self.add_song_to_cache(song));
+    }
+
     pub fn retrieve_all_songs(&self) -> Vec<Song> {
+        // ID, name, artist, album, duration, exists
         let mut pattern = self.connection.prepare("SELECT * FROM Songs").unwrap();
         pattern.query_map([], |row| {
             let id = row.get(0).unwrap();
-            let file = match row.get(4).unwrap() {
+            let file = match row.get(5).unwrap() {
                 0 => None,
                 _ => Some(self.directory.join(PathBuf::from(&id)))
             };
@@ -68,13 +74,14 @@ impl Database {
                 row.get(2).unwrap(),
                 id,
                 row.get(3).unwrap(),
+                row.get::<_, String>(4).unwrap().parse::<usize>().unwrap(),
                 file
             ) )
         }).unwrap().map(|x| x.unwrap()).collect()
     }
 
     pub fn search_cached_song(&self, query: String) -> Vec<Song> {
-        let mut like_query = format!("%{query}%");
+        let like_query = format!("%{query}%");
         let mut pattern = self.connection.prepare("SELECT * FROM Songs WHERE name LIKE ? OR artist LIKE ?").unwrap();
         pattern.query_map(params![like_query, like_query], |row| {
             Ok({
@@ -82,12 +89,13 @@ impl Database {
                 let id = row.get::<_, String>(0).unwrap();
                 let name = row.get::<_, String>(1).unwrap();
                 let artist = row.get::<_, String>(2).unwrap();
-                let duration_s = row.get::<_, usize>(3).unwrap();
-                let downloaded = match row.get::<_, usize>(4) {
+                let album = row.get::<_, String>(3).unwrap();
+                let duration_s = row.get::<_, usize>(4).unwrap();
+                let downloaded = match row.get::<_, usize>(5) {
                     Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(&id))) },
                     Err(_) => None
                 };
-                Song::new(id, name, artist, duration_s, downloaded)
+                Song::new(id, name, artist, album, duration_s, downloaded)
             })
         }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>()
     }
