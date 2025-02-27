@@ -37,7 +37,9 @@ pub async fn search_and_dump(query: String, database: AM<Database>, dump: AMV<So
         (database.get_directory(), database.hash_all_songs())
     };
     
-    let mut results: Vec<Song> = search_youtube_music(query, directory).await.unwrap().into_iter().filter(|song| db_hash.contains(&song.id)).collect();
+    let mut results: Vec<Song> = search_youtube_music(query, directory).await.unwrap().into_iter().filter(|song| !db_hash.contains(&song.id)).collect();
+    let database = database.lock().unwrap();
+    database.add_songs_to_cache(&results);
     let mut dump = dump.lock().unwrap();
     dump.append(&mut results);
 }
