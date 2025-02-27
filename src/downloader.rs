@@ -198,7 +198,7 @@ impl Downloader {
     }
 }
 
-pub async fn search_youtube_music(query: String) -> Result<Vec<Song>, String> {
+pub async fn search_youtube_music(query: String, directory: PathBuf) -> Result<Vec<Song>, String> {
     let mut chromedriver = match Command::new("chromedriver").stdout(Stdio::piped()).spawn() {
         Ok(child) => child,
         Err(e) => return Err(format!("Failed to spawn chromedriver: {e:?}"))
@@ -280,8 +280,13 @@ pub async fn search_youtube_music(query: String) -> Result<Vec<Song>, String> {
 
         let id = url_list.remove(0);
 
-        println!("Song found: {song} by {artist} in {album}. It is {duration} seconds long. URL: {id}");
-        options.push(Song::new(song, artist, id, album, duration, None));
+        let path = directory.join(PathBuf::from(format!("{}.mp3", id)));
+        let downloaded: Option<PathBuf> = match path.exists() {
+            true => Some(path),
+            false => None
+        };
+
+        options.push(Song::new(song, artist, id, album, duration, downloaded));
     }
 
     driver.quit().await.unwrap();
