@@ -1,11 +1,11 @@
 use std::thread::{JoinHandle, spawn, sleep};
 use tokio::io::{BufReader, AsyncBufReadExt};
 use tokio::process::Command;
-use std::sync::Arc;
 use thirtyfour::prelude::*;
 use std::time::Duration;
 use std::process::Stdio;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::music::Song;
 use crate::utility::{AM, AMV, sync};
