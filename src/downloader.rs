@@ -241,12 +241,25 @@ pub async fn search_youtube_music(query: String) -> Result<Vec<Song>, String> {
     sleep(Duration::from_secs(1));
 
     let video_titles = driver.find_all(By::ClassName("style-scope ytmusic-shelf-renderer")).await.unwrap();
-
-    let mut options: Vec<Song> = Vec::new();
     if video_titles.len() == 0 { return Ok(Vec::new()); }
 
     let songs = video_titles[0].clone();
+    let urls = songs.find_all(By::ClassName("yt-simple-endpoint")).await.unwrap();
+    let mut url_list: Vec<String> = Vec::<String>::new();
+
+    for url in urls {
+        let addr = url.prop("href").await.unwrap().unwrap();
+        
+        if match addr.chars().nth(26) {
+            Some(c) => c == 'w',
+            None => false
+        } {
+            url_list.push(addr.split("watch?v=").nth(1).unwrap().to_string())
+        }
+    }
+
     let mut lines = songs.text().await.unwrap().lines().skip(1).map(|x| x.to_string()).collect::<Vec<String>>();
+    let mut options: Vec<Song> = Vec::<Song>::new();
 
     while lines.len() >= 7 {
         let song = lines.remove(0);
@@ -265,7 +278,10 @@ pub async fn search_youtube_music(query: String) -> Result<Vec<Song>, String> {
         let duration = time[0] * 60 + time[1];
         let _plays = lines.remove(0);
 
-        println!("Song found: {song} by {artist} in {album}. It is {duration} seconds long.");
+        let id = url_list.remove(0);
+
+        println!("Song found: {song} by {artist} in {album}. It is {duration} seconds long. URL: {id}");
+        options.push(Song::new(song, artist, id, album, duration, None));
     }
 
     driver.quit().await.unwrap();
