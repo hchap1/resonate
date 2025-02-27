@@ -1,5 +1,6 @@
 mod downloader;
 mod filemanager;
+mod utility;
 mod music;
 
 use std::path::PathBuf;

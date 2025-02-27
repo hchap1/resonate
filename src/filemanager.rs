@@ -1,4 +1,5 @@
 use std::fs::create_dir_all;
+use std::collections::HashSet;
 use directories::ProjectDirs;
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
@@ -74,10 +75,22 @@ impl Database {
                 row.get(2).unwrap(),
                 id,
                 row.get(3).unwrap(),
-                row.get::<_, String>(4).unwrap().parse::<usize>().unwrap(),
+                row.get::<_, usize>(4).unwrap(),
                 file
             ) )
         }).unwrap().map(|x| x.unwrap()).collect()
+    }
+
+    pub fn hash_all_songs(&self) -> HashSet<String> {
+        let mut hash: HashSet<String> = HashSet::<String>::new();
+
+        // ID, name, artist, album, duration, exists
+        let mut pattern = self.connection.prepare("SELECT id FROM Songs").unwrap();
+        pattern.query_map([], |row| {
+            let id = row.get(0).unwrap();
+            Ok(id)
+        }).unwrap().for_each(|x| { hash.insert(x.unwrap()); });
+        hash
     }
 
     pub fn search_cached_song(&self, query: String) -> Vec<Song> {
@@ -98,5 +111,9 @@ impl Database {
                 Song::new(id, name, artist, album, duration_s, downloaded)
             })
         }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>()
+    }
+
+    pub fn get_directory(&self) -> PathBuf {
+        self.directory.clone()
     }
 }

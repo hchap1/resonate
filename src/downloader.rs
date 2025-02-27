@@ -1,20 +1,14 @@
 use std::thread::{JoinHandle, spawn, sleep};
 use tokio::io::{BufReader, AsyncBufReadExt};
 use tokio::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use thirtyfour::prelude::*;
 use std::time::Duration;
 use std::process::Stdio;
 use std::path::PathBuf;
 
 use crate::music::Song;
-
-type AM<T> = Arc<Mutex<T>>;
-type AMV<T> = Arc<Mutex<Vec<T>>>;
-
-fn sync<T>(obj: T) -> AM<T> {
-    Arc::new(Mutex::new(obj))
-}
+use crate::utility::{AM, AMV, sync};
 
 enum Action {
     Download,
