@@ -1,7 +1,10 @@
 use std::thread::{JoinHandle, spawn, sleep};
+use tokio::io::{BufReader, AsyncBufReadExt};
+use tokio::process::Command;
 use std::sync::{Arc, Mutex};
-use std::process::Command;
+use thirtyfour::prelude::*;
 use std::time::Duration;
+use std::process::Stdio;
 use std::path::PathBuf;
 
 use crate::music::Song;
@@ -140,8 +143,8 @@ impl Task {
                     .arg("-o")
                     .arg(format!("{}/{}.mp3", directory.to_string_lossy().to_string(), self.target.id))
                     .arg(format!("https://music.youtube.com/watch?v={}", self.target.id))
-                    // .stdout(std::process::Stdio::null())
-                    // .stderr(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
                     .spawn().unwrap();
 
                 let _ = handle.wait();
@@ -193,4 +196,48 @@ impl Downloader {
             if *worker.running.lock().unwrap() { 1 } else { 0 }
         }).sum::<usize>()
     }
+}
+
+pub async fn search_youtube_music(query: String) -> Result<Vec<Song>, String> {
+    let mut chromedriver = match Command::new("chromedriver").stdout(Stdio::piped()).spawn() {
+        Ok(child) => child,
+        Err(e) => return Err(format!("Failed to spawn chromedriver: {e:?}"))
+    };
+
+    let stdout = match chromedriver.stdout.take() {
+        Some(stdout) => stdout,
+        None => return Err(String::from("Failed to capture STDOUT of chromedriver."))
+    };
+
+    let mut reader = BufReader::new(stdout).lines();
+
+    for _ in 0..3 { let _ = reader.next_line().await; }
+
+    let ip = match reader.next_line().await {
+        Ok(line) => line.unwrap().split(" ").nth(6).unwrap().to_string().strip_suffix('.').unwrap().to_string(),
+        Err(e) => return Err(format!("Failed to read STDOUT of chromedriver: {e:?}"))
+    };
+
+    let mut caps = DesiredCapabilities::chrome();
+    let _ = caps.add_arg("--headless");
+    let _ = caps.add_arg("--disable-gpu");
+    let _ = caps.add_arg("--no-sandbox");
+    let _ = caps.add_arg("--disable-software-rasterizer");
+    let _ = caps.add_arg("--remote-debugging-port=9222");
+    let _ = caps.add_arg("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+
+    let driver = WebDriver::new(format!("http://localhost:{ip}"), caps).await.unwrap();
+
+    driver.goto(format!("https://music.youtube.com/search?q={}", query)).await.unwrap();
+    let video_titles = driver.find_all(By::ClassName("style-scope ytmusic-shelf-renderer")).await.unwrap();
+
+    let mut options: Vec<Song> = Vec::new();
+
+    for title in video_titles {
+        let lines = title.text().await.unwrap().lines().for_each(|x| println!("LINE: {x}"));
+        println!("----");
+    }
+
+    driver.quit().await.unwrap();
+    Ok(options)
 }

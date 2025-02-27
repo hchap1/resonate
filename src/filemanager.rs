@@ -55,10 +55,30 @@ impl Database {
         ).as_str());
     }
 
+    pub fn retrieve_all_songs(&self) -> Vec<Song> {
+        let mut pattern = self.connection.prepare("SELECT * FROM Songs").unwrap();
+        pattern.query_map([], |row| {
+            let id = row.get(0).unwrap();
+            let file = match row.get(4).unwrap() {
+                0 => None,
+                _ => Some(self.directory.join(PathBuf::from(&id)))
+            };
+            Ok(Song::new(
+                row.get(1).unwrap(),
+                row.get(2).unwrap(),
+                id,
+                row.get(3).unwrap(),
+                file
+            ) )
+        }).unwrap().map(|x| x.unwrap()).collect()
+    }
+
     pub fn search_cached_song(&self, query: String) -> Vec<Song> {
-        let mut pattern = self.connection.prepare("SELECT id FROM Songs WHERE name LIKE ? OR artist LIKE ?").unwrap();
-        pattern.query_map(params![query, query], |row| {
+        let mut like_query = format!("%{query}%");
+        let mut pattern = self.connection.prepare("SELECT * FROM Songs WHERE name LIKE ? OR artist LIKE ?").unwrap();
+        pattern.query_map(params![like_query, like_query], |row| {
             Ok({
+                println!("DB row match found");
                 let id = row.get::<_, String>(0).unwrap();
                 let name = row.get::<_, String>(1).unwrap();
                 let artist = row.get::<_, String>(2).unwrap();
