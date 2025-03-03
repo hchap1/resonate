@@ -1,7 +1,7 @@
 use std::thread::{JoinHandle, spawn, sleep};
-use tokio::io::{BufReader, AsyncBufReadExt};
-use tokio::process::Command;
-use thirtyfour::prelude::*;
+use std::io::{BufReader, BufRead};
+use std::process::Command;
+use thirtyfour_sync::prelude::*;
 use std::time::Duration;
 use std::process::Stdio;
 use std::path::PathBuf;
@@ -192,7 +192,7 @@ impl Downloader {
     }
 }
 
-pub async fn search_youtube_music(query: String, directory: PathBuf) -> Result<Vec<Song>, String> {
+pub fn search_youtube_music(query: String, directory: PathBuf) -> Result<Vec<Song>, String> {
     let mut chromedriver = match Command::new("chromedriver").stdout(Stdio::piped()).spawn() {
         Ok(child) => child,
         Err(e) => return Err(format!("Failed to spawn chromedriver: {e:?}"))
@@ -205,44 +205,43 @@ pub async fn search_youtube_music(query: String, directory: PathBuf) -> Result<V
 
     let mut reader = BufReader::new(stdout).lines();
 
-    for _ in 0..3 { let _ = reader.next_line().await; }
+    for _ in 0..3 { let _ = reader.next(); }
 
-    let ip = match reader.next_line().await {
-        Ok(line) => line.unwrap().split(" ").nth(6).unwrap().to_string().strip_suffix('.').unwrap().to_string(),
-        Err(e) => return Err(format!("Failed to read STDOUT of chromedriver: {e:?}"))
+    let ip = match reader.next() {
+        Some(line) => line.unwrap().split(" ").nth(6).unwrap().to_string().strip_suffix('.').unwrap().to_string(),
+        None => return Err(format!("Failed to read STDOUT of chromedriver."))
     };
 
     let mut caps = DesiredCapabilities::chrome();
-    let _ = caps.add_arg("--headless");
-    let _ = caps.add_arg("--disable-gpu");
-    let _ = caps.add_arg("--no-sandbox");
-    let _ = caps.add_arg("--disable-software-rasterizer");
-    let _ = caps.add_arg("--remote-debugging-port=9222");
-    let _ = caps.add_arg("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+    let _ = caps.add_chrome_arg("--headless");
+    let _ = caps.add_chrome_arg("--disable-gpu");
+    let _ = caps.add_chrome_arg("--no-sandbox");
+    let _ = caps.add_chrome_arg("--disable-software-rasterizer");
+    let _ = caps.add_chrome_arg("--remote-debugging-port=9222");
+    let _ = caps.add_chrome_arg("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
 
-    let driver = WebDriver::new(format!("http://localhost:{ip}"), caps).await.unwrap();
-    driver.goto(format!("https://music.youtube.com/search?q={}", query)).await.unwrap();
+    let driver = WebDriver::new(format!("http://localhost:{ip}").as_str(), caps).unwrap();
+    driver.get(format!("https://music.youtube.com/search?q={}", query.replace(" ", "+"))).unwrap();
 
-    let button = driver.find_all(By::Css("button.yt-spec-button-shape-next")).await.unwrap();
-
-    for element in button {
-        if element.text().await.unwrap() == "Show all" && element.is_clickable().await.unwrap() {
-            element.click().await.unwrap();
+    let songs_button = driver.find_elements(By::Css("a.yt-simple-endpoint")).unwrap();
+    for element in songs_button {
+        if element.is_clickable().unwrap() && element.text().unwrap() == "Songs" {
+            element.click().unwrap();
             break;
         }
     }
 
     sleep(Duration::from_secs(1));
 
-    let video_titles = driver.find_all(By::ClassName("style-scope ytmusic-shelf-renderer")).await.unwrap();
+    let video_titles = driver.find_elements(By::ClassName("style-scope ytmusic-shelf-renderer")).unwrap();
     if video_titles.len() == 0 { return Ok(Vec::new()); }
 
     let songs = video_titles[0].clone();
-    let urls = songs.find_all(By::ClassName("yt-simple-endpoint")).await.unwrap();
+    let urls = songs.find_elements(By::ClassName("yt-simple-endpoint")).unwrap();
     let mut url_list: Vec<String> = Vec::<String>::new();
 
     for url in urls {
-        let addr = url.prop("href").await.unwrap().unwrap();
+        let addr = url.get_property("href").unwrap().unwrap();
         
         if match addr.chars().nth(26) {
             Some(c) => c == 'w',
@@ -252,7 +251,7 @@ pub async fn search_youtube_music(query: String, directory: PathBuf) -> Result<V
         }
     }
 
-    let mut lines = songs.text().await.unwrap().lines().skip(1).map(|x| x.to_string()).collect::<Vec<String>>();
+    let mut lines = songs.text().unwrap().lines().skip(1).map(|x| x.to_string()).collect::<Vec<String>>();
     let mut options: Vec<Song> = Vec::<Song>::new();
 
     while lines.len() >= 7 {
@@ -268,21 +267,32 @@ pub async fn search_youtube_music(query: String, directory: PathBuf) -> Result<V
         }
         let album = lines.remove(0);
         lines.remove(0);
-        let time = lines.remove(0).split(':').map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>();
+        let timestr = lines.remove(0);
+        let time = match timestr.contains(':') {
+            true => timestr.split(':').map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>(),
+            false => {
+                vec![0, 0]
+            }
+        };
         let duration = time[0] * 60 + time[1];
-        let _plays = lines.remove(0);
+        if duration != 0 { let _plays = lines.remove(0); }
 
         let id = url_list.remove(0);
 
+        if duration == 0 {
+            continue;
+        }
+
         let path = directory.join(PathBuf::from(format!("{}.mp3", id)));
+
         let downloaded: Option<PathBuf> = match path.exists() {
             true => Some(path),
             false => None
         };
 
-        options.push(Song::new(song, artist, id, album, duration, downloaded));
+        options.push(Song::new(song, artist, album, id, duration, downloaded));
     }
 
-    driver.quit().await.unwrap();
+    driver.quit().unwrap();
     Ok(options)
 }

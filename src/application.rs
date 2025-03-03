@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use iced::widget::Column;
 use iced::Task;
 use iced::widget::button;
 use iced::widget::text;
@@ -11,13 +10,15 @@ use iced::Element;
 use crate::downloader::Downloader;
 use crate::filemanager::get_application_directory;
 use crate::filemanager::Database;
-use crate::music::{search_and_dump, Song};
+use crate::music::{SearchTask, Song};
 use crate::utility::*;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
     Quit,
-    Search(String)
+    Search(String),
+    
+    IncomingSearch(Song)
 }
 
 // The underlying application state
@@ -51,26 +52,39 @@ impl Application {
             state: State::default(),
             database: sync(database),
             downloader: sync(downloader),
-            buffer: sync(Vec::<Song>::new())
+            buffer: sync(vec![Song::example()])
         }
     }
 
     fn get_db_ref(&self) -> AM<Database> { self.database.clone() }
-    fn get_buf_ref(&self) -> AMV<Song> { self.buffer.clone() }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Quit => iced::exit::<Message>(),
+
             Message::Search(q) => {
-                let db = self.get_db_ref();
-                let buf = self.get_buf_ref();
+                println!("Searching: {q}");
+                Task::<Message>::stream(SearchTask::new(q, self.get_db_ref()))
+            }
+
+            Message::IncomingSearch(s) => {
+                let mut buf = self.buffer.lock().unwrap();
+                buf.push(s);
+                println!("Received message to add song!");
                 Task::<Message>::none()
             }
         }
     }
 
     pub fn view(&self) -> Element<Message> {
-        let widgets = column![button("Seach 'COLDPLAY'").on_press(Message::Search(String::from("coldplay")))];
+        let mut widgets = column![button("Seach 'COLDPLAY'").on_press(Message::Search(String::from("coldplay")))];
+
+        let buf = self.buffer.lock().unwrap();
+
+        for s in buf.iter() {
+            widgets = widgets.push(text(s.display()));
+        }
+
         center(widgets).padding(20).into()
     }
 }
