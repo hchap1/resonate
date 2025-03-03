@@ -1,9 +1,13 @@
 use std::path::PathBuf;
 
+use iced::widget::container;
 use iced::widget::Column;
+use iced::widget::Scrollable;
+use iced::Background;
+use iced::Color;
 use iced::Task;
 use iced::widget::button;
-use iced::widget::center;
+use iced::widget::Container;
 use iced::Element;
 
 use crate::downloader::Downloader;
@@ -86,8 +90,19 @@ impl Application {
             .map(|song| song_widget(song.clone()))
             .collect();
 
-        let mut widgets = Column::new().push(button("Seach 'COLDPLAY'").on_press(Message::Search(String::from("coldplay"))));
-        for song in songs { widgets = widgets.push(song); }
-        center(widgets).padding(20).into()
+        let mut widgets = Column::new().spacing(10).push(button("Seach 'COLDPLAY'").on_press(Message::Search(String::from("coldplay"))));
+        let mut song_columns: Column<Message> = Column::new().spacing(10);
+        for song in songs { song_columns = song_columns.push(song); }
+
+        let scrollable_song_list: Scrollable<Message> = Scrollable::new(song_columns);
+        widgets = widgets.push(scrollable_song_list);
+
+        Container::new(widgets)
+            .style(|_theme| {
+                container::Style::default().background(
+                    Background::Color(Color::from_rgb(0.1f32, 0.1f32, 0.1f32))
+                )
+            })
+            .into()
     }
 }
