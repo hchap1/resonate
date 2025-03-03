@@ -2,6 +2,7 @@ mod application;
 mod filemanager;
 mod downloader;
 mod utility;
+mod widgets;
 mod music;
 
 use std::path::PathBuf;

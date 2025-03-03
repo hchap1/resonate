@@ -1,24 +1,24 @@
 use std::path::PathBuf;
 
+use iced::widget::Column;
 use iced::Task;
 use iced::widget::button;
-use iced::widget::text;
-use iced::widget::column;
 use iced::widget::center;
 use iced::Element;
 
 use crate::downloader::Downloader;
 use crate::filemanager::get_application_directory;
 use crate::filemanager::Database;
-use crate::music::{SearchTask, Song};
+use crate::music::{Song, local_search, cloud_search};
 use crate::utility::*;
+use crate::widgets::song_widget;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
     Quit,
     Search(String),
     
-    IncomingSearch(Song)
+    SearchResults(Vec<Song>)
 }
 
 // The underlying application state
@@ -64,27 +64,30 @@ impl Application {
 
             Message::Search(q) => {
                 println!("Searching: {q}");
-                Task::<Message>::stream(SearchTask::new(q, self.get_db_ref()))
+                Task::<Message>::batch(vec![
+                    Task::<Message>::future(local_search(q.clone(), self.get_db_ref())).map(|msg| msg),
+                    Task::<Message>::future(cloud_search(q.clone(), self.get_db_ref())).map(|msg| msg)
+                ])
             }
 
-            Message::IncomingSearch(s) => {
+            Message::SearchResults(songs) => {
                 let mut buf = self.buffer.lock().unwrap();
-                buf.push(s);
-                println!("Received message to add song!");
+                songs.into_iter().for_each(|song| buf.push(song));
                 Task::<Message>::none()
             }
         }
     }
 
     pub fn view(&self) -> Element<Message> {
-        let mut widgets = column![button("Seach 'COLDPLAY'").on_press(Message::Search(String::from("coldplay")))];
 
         let buf = self.buffer.lock().unwrap();
+        let songs: Vec<Element<Message>> = buf
+            .iter()
+            .map(|song| song_widget(song.clone()))
+            .collect();
 
-        for s in buf.iter() {
-            widgets = widgets.push(text(s.display()));
-        }
-
+        let mut widgets = Column::new().push(button("Seach 'COLDPLAY'").on_press(Message::Search(String::from("coldplay"))));
+        for song in songs { widgets = widgets.push(song); }
         center(widgets).padding(20).into()
     }
 }
