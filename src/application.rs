@@ -11,6 +11,7 @@ use iced::widget::button;
 use iced::widget::Container;
 use iced::Element;
 
+use crate::downloader;
 use crate::downloader::Downloader;
 use crate::filemanager::get_application_directory;
 use crate::filemanager::Database;
@@ -26,7 +27,9 @@ pub enum Message {
     SearchBarInput(String),
     SearchResults(Vec<Song>),
     DumpDB,
-    ToggleYTSearch(bool)
+    ToggleYTSearch(bool),
+    Download(Song),
+    SuccessfulDownloads(Vec<Song>)
 }
 
 // The underlying application state
@@ -44,7 +47,7 @@ pub struct Application {
 
     // Backends
     database: AM<Database>,
-    downloader: AM<Downloader>,
+    downloader: Downloader,
     buffer: AMV<Song>,
     search_bar: String,
     
@@ -64,8 +67,8 @@ impl Application {
         Self {
             state: State::default(),
             database: sync(database),
-            downloader: sync(downloader),
-            buffer: sync(vec![Song::example()]),
+            downloader,
+            buffer: sync(vec![]),
             search_bar: String::new(),
             active_search_threads: 0,
             use_online_search: false
@@ -120,6 +123,17 @@ impl Application {
 
             Message::ToggleYTSearch(b) => {
                 self.use_online_search = b;
+                Task::none()
+            }
+
+            Message::Download(s) => {
+                println!("[DOWNLOAD] Requested download of {} ({}).", s.name, s.id);
+                Task::<Message>::future(self.downloader.wait_for_execution(downloader::Task::download(s)))
+            }
+
+            Message::SuccessfulDownloads(songs) => {
+                let database = self.database.lock().unwrap();
+                songs.into_iter().for_each(|song| database.update(song));
                 Task::none()
             }
         }

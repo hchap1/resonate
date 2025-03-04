@@ -7,6 +7,7 @@ use std::process::Stdio;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::application::Message;
 use crate::music::Song;
 use crate::utility::{AM, AMV, sync};
 
@@ -104,6 +105,48 @@ impl Worker {
         }
     }
 
+    fn queue_until_completion(&mut self, task: Task) -> Vec<Song> {
+        let running = { if *self.running.lock().unwrap() { true } else { false } };
+        let mut songs: Vec<Song> = vec![];
+
+        // If the thread is already running, simply add this to the queue
+        // Else, make a thread and do the same
+        if running {
+
+            let mut todo = self.todo.lock().unwrap();
+            todo.push(task);
+            for item in todo.iter() {
+                let mut song = item.target.clone();
+                song.file = Some(self.directory.join(format!("{}.mp3", song.id)));
+                songs.push(song);
+            }
+
+        } else {
+
+            let todo_ref = Arc::clone(&self.todo);
+            let running_ref = Arc::clone(&self.running);
+            let directory_clone = self.directory.clone();
+
+            {
+                let mut todo = self.todo.lock().unwrap();
+                todo.push(task);
+
+                for item in todo.iter() {
+                    let mut song = item.target.clone();
+                    song.file = Some(self.directory.join(format!("{}.mp3", song.id)));
+                    songs.push(song);
+                }
+
+                let mut running = self.running.lock().unwrap();
+                *running = true;
+            }
+
+            self.handle = Some(spawn(move || worker_thread(todo_ref, running_ref, directory_clone)));
+        }
+        let _ = self.handle.take().unwrap().join();
+        songs
+    }
+
     fn query_task_length(&self) -> Option<usize> {
         let running = self.running.lock().unwrap();
         let todo = self.todo.lock().unwrap();
@@ -182,7 +225,30 @@ impl Downloader {
         }
 
         self.workers[most_free_worker].queue(task);
+    }
 
+    pub async fn wait_for_execution(&mut self, task: Task) -> Message {
+
+        let mut minimum_workload: usize = 0;
+        let mut most_free_worker: usize = 0;
+        
+        for idx in 0..self.workers.len() {
+            match self.workers[idx].query_task_length() {
+                Some(number_of_tasks) => {
+                    if number_of_tasks < minimum_workload {
+                        most_free_worker = idx;
+                        minimum_workload = number_of_tasks;
+                    }
+                }
+                None => {
+                    let tasks = self.workers[idx].queue_until_completion(task);
+                    return Message::SuccessfulDownloads(tasks);
+                }
+            }
+        }
+
+        let tasks = self.workers[most_free_worker].queue_until_completion(task);
+        Message::SuccessfulDownloads(tasks)
     }
 
     pub fn get_busy_worker_count(&self) -> usize {

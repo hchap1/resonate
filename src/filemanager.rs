@@ -4,7 +4,7 @@ use directories::ProjectDirs;
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
 
-use crate::music::Song;
+use crate::{application::Message, music::Song};
 
 /// Creates and then returns the path to a suitable location for application data to be stored.
 /// If the path already exists, just return the path.
@@ -111,5 +111,10 @@ impl Database {
 
     pub fn get_directory(&self) -> PathBuf {
         self.directory.clone()
+    }
+
+    pub fn update(&self, song: Song) {
+        let sql = "UPDATE Songs SET name = ?, artist = ?, album = ?, duration_s = ?, downloaded = ? WHERE id = ?";
+        self.connection.execute(sql, params![song.name, song.artist, song.album, song.duration, match song.file { Some(_) => 1, None => 0 }]);
     }
 }
