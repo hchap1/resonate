@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use iced::alignment::Vertical;
 
 pub struct ResonateColour;
@@ -29,7 +31,7 @@ use iced::{
 
 use crate::{application::Message, music::Song};
 
-pub fn song_widget(song: Song) -> Element<'static, Message> {
+pub fn song_widget(song: Song, directory: PathBuf) -> Element<'static, Message> {
     let song_clone = song.clone();
 
     let play_button = button("Download")
@@ -42,8 +44,12 @@ pub fn song_widget(song: Song) -> Element<'static, Message> {
             shadow: Shadow::default(),
             text_color: ResonateColour::text(),
         })
-        .on_press_with(move || Message::Download(song_clone.clone()));
+        .on_press_with(move || Message::Download(song_clone.clone(), directory.clone()));
 
+    let downloaded = text(match song.file {
+        Some(p) => p.to_string_lossy().to_string(),
+        None => String::from("Not downloaded.")
+    });
     let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(song.artist).color(ResonateColour::text());
     let album = text(song.album).color(ResonateColour::text());
@@ -59,6 +65,7 @@ pub fn song_widget(song: Song) -> Element<'static, Message> {
         )
         .push(album.width(Length::FillPortion(4)))
         .push(duration.width(Length::FillPortion(1)))
+        .push(downloaded.width(Length::FillPortion(3)))
         .push(play_button.width(Length::FillPortion(1)))
         .align_y(Vertical::Center);
 

@@ -4,7 +4,7 @@ use directories::ProjectDirs;
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
 
-use crate::{application::Message, music::Song};
+use crate::music::Song;
 
 /// Creates and then returns the path to a suitable location for application data to be stored.
 /// If the path already exists, just return the path.

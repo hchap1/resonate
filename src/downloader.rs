@@ -1,18 +1,22 @@
-use std::thread::{JoinHandle, spawn, sleep};
+use std::pin::Pin;
+use std::task::Waker;
+use std::thread::sleep;
 use std::io::{BufReader, BufRead};
 use std::process::{Child, Command};
+use iced::futures::Stream;
 use thirtyfour_sync::prelude::*;
 use std::time::Duration;
 use std::process::Stdio;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use crate::application::Message;
 use crate::music::Song;
-use crate::utility::{AM, AMV, sync};
 
-struct DownloadTask {
-    download_process: Child
+pub struct DownloadTask {
+    target: Song,
+    directory: PathBuf,
+    download_process: Child,
+    asynchronous_context: Option<Waker>
 }
 
 impl DownloadTask {
@@ -36,8 +40,29 @@ impl DownloadTask {
             .stderr(std::process::Stdio::null())
             .spawn().unwrap();
 
-        println!("[WORKER] finished downloading {}", target.name);
-        Some(Self{ download_process: handle })
+        Some(Self{ target, directory, download_process: handle, asynchronous_context: None })
+    }
+}
+
+impl Stream for DownloadTask {
+    type Item = Message;
+
+    fn poll_next(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> std::task::Poll<Option<<Self as Stream>::Item>> {
+        println!("---- DOWNLOAD POLL FOR {} -----", self.target.name);
+        let (poll_result, cont) = match self.download_process.try_wait() {
+            // Process exited with status - SuccessfulDownload thus end.
+            Ok(Some(_)) => {
+                println!("Process finished!");
+                self.target.file = Some(self.directory.join(format!("{}.mp3", self.target.id)));
+                (std::task::Poll::Ready(Some(Message::SuccessfulDownload(self.target.clone()))), false)
+            },
+            // Process is still running, notify application so it can display the song as downloading
+            Ok(None) => (std::task::Poll::Ready(Some(Message::Downloading(self.target.clone()))), true),
+            // Could not poll process, end task
+            Err(_) => (std::task::Poll::Ready(None), false)
+        };
+        if cont { context.waker().wake_by_ref(); }
+        poll_result
     }
 }
 

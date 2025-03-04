@@ -7,12 +7,11 @@ use iced::Background;
 use iced::Color;
 use iced::Length;
 use iced::Task;
-use iced::widget::button;
 use iced::widget::Container;
 use iced::Element;
+use std::collections::HashSet;
 
-use crate::downloader;
-use crate::downloader::Downloader;
+use crate::downloader::DownloadTask;
 use crate::filemanager::get_application_directory;
 use crate::filemanager::Database;
 use crate::music::{Song, local_search, cloud_search};
@@ -28,8 +27,9 @@ pub enum Message {
     SearchResults(Vec<Song>),
     DumpDB,
     ToggleYTSearch(bool),
-    Download(Song),
-    SuccessfulDownloads(Vec<Song>)
+    Download(Song, PathBuf),
+    SuccessfulDownload(Song),
+    Downloading(Song)
 }
 
 // The underlying application state
@@ -47,31 +47,32 @@ pub struct Application {
 
     // Backends
     database: AM<Database>,
-    downloader: Downloader,
     buffer: AMV<Song>,
     search_bar: String,
     
     active_search_threads: usize,
-    use_online_search: bool
+    use_online_search: bool,
+
+    currently_download_songs: HashSet<Song>
 }
 
 impl std::default::Default for Application {
     fn default() -> Self {
         let directory: PathBuf = get_application_directory().unwrap();
-        Self::new(Database::new(directory.clone()), Downloader::new(directory))
+        Self::new(Database::new(directory.clone()))
     }
 }
 
 impl Application {
-    pub fn new(database: Database, downloader: Downloader) -> Self {
+    pub fn new(database: Database) -> Self {
         Self {
             state: State::default(),
             database: sync(database),
-            downloader,
             buffer: sync(vec![]),
             search_bar: String::new(),
             active_search_threads: 0,
-            use_online_search: false
+            use_online_search: false,
+            currently_download_songs: HashSet::<Song>::new()
         }
     }
 
@@ -126,14 +127,33 @@ impl Application {
                 Task::none()
             }
 
-            Message::Download(s) => {
+            Message::Download(s, d) => {
                 println!("[DOWNLOAD] Requested download of {} ({}).", s.name, s.id);
-                Task::<Message>::future(self.downloader.wait_for_execution(downloader::Task::download(s)))
+                match DownloadTask::new(d, s) {
+                    Some(task) => Task::stream(task),
+                    None => Task::none()
+                }
             }
 
-            Message::SuccessfulDownloads(songs) => {
+            // When a song is successfully downloaded, update the database and redraw
+            Message::SuccessfulDownload(song) => {
+                self.currently_download_songs.remove(&song);
+                
+                // Update song view
+                let mut buf = self.buffer.lock().unwrap();
+                for s in buf.iter_mut() {
+                    if s.id == song.id {
+                        s.file = song.file.clone()
+                    }
+                }
                 let database = self.database.lock().unwrap();
-                songs.into_iter().for_each(|song| database.update(song));
+                database.update(song);
+
+                Task::none()
+            }
+
+            Message::Downloading(song) => {
+                self.currently_download_songs.insert(song);
                 Task::none()
             }
         }
@@ -144,9 +164,13 @@ impl Application {
         match self.state {
             State::Search => {
                 let buf = self.buffer.lock().unwrap();
+                let dir = {
+                    let db = self.database.lock().unwrap();
+                    db.get_directory()
+                };
                 let songs: Vec<Element<Message>> = buf
                     .iter()
-                    .map(|song| song_widget(song.clone()))
+                    .map(|song| song_widget(song.clone(), dir.clone()))
                     .collect();
 
                 let mut widgets = Column::new()
