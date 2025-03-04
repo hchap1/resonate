@@ -112,4 +112,9 @@ impl Database {
     pub fn get_directory(&self) -> PathBuf {
         self.directory.clone()
     }
+
+    pub fn update(&self, song: Song) {
+        let sql = "UPDATE Songs SET downloaded = ? WHERE id = ?";
+        let _ = self.connection.execute(sql, params![match song.file { Some(_) => 1, None => 0 }, song.id]);
+    }
 }

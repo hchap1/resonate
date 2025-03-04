@@ -1,17 +1,18 @@
 use std::path::PathBuf;
 
 use iced::widget::container;
+use iced::widget::text;
 use iced::widget::Column;
 use iced::widget::Scrollable;
 use iced::Background;
 use iced::Color;
 use iced::Length;
 use iced::Task;
-use iced::widget::button;
 use iced::widget::Container;
 use iced::Element;
+use std::collections::HashSet;
 
-use crate::downloader::Downloader;
+use crate::downloader::download;
 use crate::filemanager::get_application_directory;
 use crate::filemanager::Database;
 use crate::music::{Song, local_search, cloud_search};
@@ -21,12 +22,14 @@ use crate::widgets::song_widget;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
-    Quit,
+    _Quit,
     Search,
     SearchBarInput(String),
     SearchResults(Vec<Song>),
     DumpDB,
-    ToggleYTSearch(bool)
+    ToggleYTSearch(bool),
+    Download(Song, PathBuf),
+    SuccessfulDownload(Song),
 }
 
 // The underlying application state
@@ -44,31 +47,34 @@ pub struct Application {
 
     // Backends
     database: AM<Database>,
-    downloader: AM<Downloader>,
     buffer: AMV<Song>,
     search_bar: String,
     
     active_search_threads: usize,
-    use_online_search: bool
+    use_online_search: bool,
+
+    currently_download_songs: HashSet<Song>,
+    download_queue: Vec<Song>
 }
 
 impl std::default::Default for Application {
     fn default() -> Self {
         let directory: PathBuf = get_application_directory().unwrap();
-        Self::new(Database::new(directory.clone()), Downloader::new(directory))
+        Self::new(Database::new(directory.clone()))
     }
 }
 
 impl Application {
-    pub fn new(database: Database, downloader: Downloader) -> Self {
+    pub fn new(database: Database) -> Self {
         Self {
             state: State::default(),
             database: sync(database),
-            downloader: sync(downloader),
-            buffer: sync(vec![Song::example()]),
+            buffer: sync(vec![]),
             search_bar: String::new(),
             active_search_threads: 0,
-            use_online_search: false
+            use_online_search: false,
+            currently_download_songs: HashSet::<Song>::new(),
+            download_queue: Vec::<Song>::new()
         }
     }
 
@@ -76,7 +82,7 @@ impl Application {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Quit => iced::exit::<Message>(),
+            Message::_Quit => iced::exit::<Message>(),
 
             Message::Search => {
                 if self.search_bar.len() == 0 {
@@ -122,6 +128,41 @@ impl Application {
                 self.use_online_search = b;
                 Task::none()
             }
+
+            Message::Download(s, d) => {
+
+                if self.currently_download_songs.contains(&s) {
+                    return Task::none()
+                }
+
+                if self.currently_download_songs.len() >= 4 {
+                    if !self.download_queue.contains(&s) { self.download_queue.push(s); }
+                    Task::none()
+                } else {
+                    self.currently_download_songs.insert(s.clone());
+                    Task::future(download(d, s)).map(|msg| msg)
+                }
+            }
+
+            // When a song is successfully downloaded, update the database and redraw
+            Message::SuccessfulDownload(song) => {
+                println!("[RUNTIME] Received successful download of {}", song.name);
+                self.currently_download_songs.remove(&song);
+                
+                // Update song view
+                let mut buf = self.buffer.lock().unwrap();
+                for s in buf.iter_mut() {
+                    if s.id == song.id {
+                        println!("[RUNTIME] Updated current view of {}", song.name);
+                        s.file = song.file.clone();
+                    }
+                }
+                let database = self.database.lock().unwrap();
+                database.update(song);
+                let directory = database.get_directory();
+
+                if self.download_queue.is_empty() { Task::none() } else { Task::future(download(directory, self.download_queue.remove(0))) }
+            }
         }
     }
 
@@ -130,14 +171,28 @@ impl Application {
         match self.state {
             State::Search => {
                 let buf = self.buffer.lock().unwrap();
+                let dir = {
+                    let db = self.database.lock().unwrap();
+                    db.get_directory()
+                };
                 let songs: Vec<Element<Message>> = buf
                     .iter()
-                    .map(|song| song_widget(song.clone()))
+                    .map(|song| {
+                        let is_downloading = self.currently_download_songs.contains(&song);
+                        song_widget(song.clone(), dir.clone(), is_downloading)
+                    })
                     .collect();
+
+                let mut tasks_col = Column::new().push(text("CURRENT DOWNLOAD TASKS"));
+
+                for song in self.currently_download_songs.iter() {
+                    tasks_col = tasks_col.push(text(song.name.clone()));
+                }
 
                 let mut widgets = Column::new()
                     .spacing(10)
-                    .push(search_bar("Search ...".to_string(), &self.search_bar, self.use_online_search));
+                    .push(search_bar("Search ...".to_string(), &self.search_bar, self.use_online_search))
+                    .push(tasks_col);
 
                 let mut song_columns: Column<Message> = Column::new().spacing(10);
                 for song in songs { song_columns = song_columns.push(song); }

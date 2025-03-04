@@ -7,7 +7,7 @@ use crate::utility::*;
 
 const DELIM: char = '͵'; // Unicode 0372, greek lower numeral sign
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Song {
     pub name: String,
     pub artist: String,
