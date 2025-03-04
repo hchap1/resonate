@@ -1,9 +1,6 @@
-use std::pin::Pin;
-use std::task::Waker;
 use std::thread::sleep;
 use std::io::{BufReader, BufRead};
-use std::process::{Child, Command};
-use iced::futures::Stream;
+use std::process::Command;
 use thirtyfour_sync::prelude::*;
 use std::time::Duration;
 use std::process::Stdio;
@@ -12,58 +9,31 @@ use std::path::PathBuf;
 use crate::application::Message;
 use crate::music::Song;
 
-pub struct DownloadTask {
-    target: Song,
-    directory: PathBuf,
-    download_process: Child,
-    asynchronous_context: Option<Waker>
-}
-
-impl DownloadTask {
-    pub fn new(directory: PathBuf, target: Song) -> Option<Self> {
-        let task_path = directory.join(PathBuf::from(format!("{}.mp3", target.id)));
-        println!("[WORKER] Using task_path {}", task_path.to_string_lossy().to_string());
-        if task_path.exists() {
-            return None;
-        }
-
-        let handle = Command::new("yt-dlp")
-            .arg("-f")
-            .arg("bestaudio")
-            .arg("--extract-audio")
-            .arg("--audio-format")
-            .arg("mp3")
-            .arg("-o")
-            .arg(format!("{}/{}.mp3", directory.to_string_lossy().to_string(), target.id))
-            .arg(format!("https://music.youtube.com/watch?v={}", target.id))
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn().unwrap();
-
-        Some(Self{ target, directory, download_process: handle, asynchronous_context: None })
+pub async fn download(directory: PathBuf, target: Song) -> Message {
+    let task_path = directory.join(PathBuf::from(format!("{}.mp3", target.id)));
+    println!("[WORKER] Using task_path {}", task_path.to_string_lossy().to_string());
+    if task_path.exists() {
+        println!("[WORKER] {} is already downloaded", target.name);
+        return Message::SuccessfulDownload(target);
     }
-}
 
-impl Stream for DownloadTask {
-    type Item = Message;
+    let mut handle = Command::new("yt-dlp")
+        .arg("-f")
+        .arg("bestaudio")
+        .arg("--extract-audio")
+        .arg("--audio-format")
+        .arg("mp3")
+        .arg("-o")
+        .arg(format!("{}/{}.mp3", directory.to_string_lossy().to_string(), target.id))
+        .arg(format!("https://music.youtube.com/watch?v={}", target.id))
+        // .stdout(std::process::Stdio::null())
+        //.stderr(std::process::Stdio::null())
+        .spawn().unwrap();
 
-    fn poll_next(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> std::task::Poll<Option<<Self as Stream>::Item>> {
-        println!("---- DOWNLOAD POLL FOR {} -----", self.target.name);
-        let (poll_result, cont) = match self.download_process.try_wait() {
-            // Process exited with status - SuccessfulDownload thus end.
-            Ok(Some(_)) => {
-                println!("Process finished!");
-                self.target.file = Some(self.directory.join(format!("{}.mp3", self.target.id)));
-                (std::task::Poll::Ready(Some(Message::SuccessfulDownload(self.target.clone()))), false)
-            },
-            // Process is still running, notify application so it can display the song as downloading
-            Ok(None) => (std::task::Poll::Ready(Some(Message::Downloading(self.target.clone()))), true),
-            // Could not poll process, end task
-            Err(_) => (std::task::Poll::Ready(None), false)
-        };
-        if cont { context.waker().wake_by_ref(); }
-        poll_result
-    }
+    println!("[WORKER] Waiting for download {}", target.name);
+    let _ = handle.wait();
+    println!("[WORKER] SuccessfulDownload({})", target.name);
+    Message::SuccessfulDownload(target)
 }
 
 pub fn search_youtube_music(query: String, directory: PathBuf) -> Result<Vec<Song>, String> {

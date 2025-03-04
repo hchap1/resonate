@@ -17,6 +17,7 @@ impl ResonateColour {
     pub fn green() -> Color { Self::new(20, 140, 20) }
     pub fn red() -> Color { Self::new(140, 20, 20) }
     pub fn blue() -> Color { Self::new(9, 84, 141) }
+    pub fn yellow() -> Color { Self::new(20, 60, 60) }
 
     pub fn darken(color: Color) -> Color { Color::from_rgb(color.r * 0.8, color.g * 0.8, color.b * 0.8) }
 }
@@ -31,7 +32,7 @@ use iced::{
 
 use crate::{application::Message, music::Song};
 
-pub fn song_widget(song: Song, directory: PathBuf) -> Element<'static, Message> {
+pub fn song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Element<'static, Message> {
     let song_clone = song.clone();
 
     let play_button = button("Download")
@@ -46,10 +47,14 @@ pub fn song_widget(song: Song, directory: PathBuf) -> Element<'static, Message> 
         })
         .on_press_with(move || Message::Download(song_clone.clone(), directory.clone()));
 
-    let downloaded = text(match song.file {
+    let downloaded = text(match song.file.clone() {
         Some(p) => p.to_string_lossy().to_string(),
-        None => String::from("Not downloaded.")
-    });
+        None => if is_downloading { String::from("DOWNLOADING") } else { String::from("Not downloaded.") }
+    })
+        .color(match song.file {
+            Some(_) => ResonateColour::green(),
+            None => if is_downloading { ResonateColour::yellow() } else { ResonateColour::text() }
+        });
     let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(song.artist).color(ResonateColour::text());
     let album = text(song.album).color(ResonateColour::text());

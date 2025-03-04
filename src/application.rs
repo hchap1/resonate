@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use iced::widget::container;
+use iced::widget::text;
 use iced::widget::Column;
 use iced::widget::Scrollable;
 use iced::Background;
@@ -11,7 +12,7 @@ use iced::widget::Container;
 use iced::Element;
 use std::collections::HashSet;
 
-use crate::downloader::DownloadTask;
+use crate::downloader::download;
 use crate::filemanager::get_application_directory;
 use crate::filemanager::Database;
 use crate::music::{Song, local_search, cloud_search};
@@ -53,7 +54,8 @@ pub struct Application {
     active_search_threads: usize,
     use_online_search: bool,
 
-    currently_download_songs: HashSet<Song>
+    currently_download_songs: HashSet<Song>,
+    download_queue: Vec<Song>
 }
 
 impl std::default::Default for Application {
@@ -72,7 +74,8 @@ impl Application {
             search_bar: String::new(),
             active_search_threads: 0,
             use_online_search: false,
-            currently_download_songs: HashSet::<Song>::new()
+            currently_download_songs: HashSet::<Song>::new(),
+            download_queue: Vec::<Song>::new()
         }
     }
 
@@ -128,15 +131,22 @@ impl Application {
             }
 
             Message::Download(s, d) => {
-                println!("[DOWNLOAD] Requested download of {} ({}).", s.name, s.id);
-                match DownloadTask::new(d, s) {
-                    Some(task) => Task::stream(task),
-                    None => Task::none()
+
+                if self.currently_download_songs.contains(&s) {
+                    return Task::none()
+                }
+
+                if self.currently_download_songs.len() >= 4 {
+                    if !self.download_queue.contains(&s) { self.download_queue.push(s); }
+                    Task::none()
+                } else {
+                    Task::future(download(d, s)).map(|msg| msg)
                 }
             }
 
             // When a song is successfully downloaded, update the database and redraw
             Message::SuccessfulDownload(song) => {
+                println!("[RUNTIME] Received successful download of {}", song.name);
                 self.currently_download_songs.remove(&song);
                 
                 // Update song view
@@ -148,8 +158,9 @@ impl Application {
                 }
                 let database = self.database.lock().unwrap();
                 database.update(song);
+                let directory = database.get_directory();
 
-                Task::none()
+                if self.download_queue.is_empty() { Task::none() } else { Task::future(download(directory, self.download_queue.remove(0))) }
             }
 
             Message::Downloading(song) => {
@@ -170,12 +181,22 @@ impl Application {
                 };
                 let songs: Vec<Element<Message>> = buf
                     .iter()
-                    .map(|song| song_widget(song.clone(), dir.clone()))
+                    .map(|song| {
+                        let is_downloading = self.currently_download_songs.contains(&song);
+                        song_widget(song.clone(), dir.clone(), is_downloading)
+                    })
                     .collect();
+
+                let mut tasks_col = Column::new().push(text("CURRENT DOWNLOAD TASKS"));
+
+                for song in self.currently_download_songs.iter() {
+                    tasks_col = tasks_col.push(text(song.name.clone()));
+                }
 
                 let mut widgets = Column::new()
                     .spacing(10)
-                    .push(search_bar("Search ...".to_string(), &self.search_bar, self.use_online_search));
+                    .push(search_bar("Search ...".to_string(), &self.search_bar, self.use_online_search))
+                    .push(tasks_col);
 
                 let mut song_columns: Column<Message> = Column::new().spacing(10);
                 for song in songs { song_columns = song_columns.push(song); }
