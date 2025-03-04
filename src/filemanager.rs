@@ -26,14 +26,13 @@ pub struct Database {
 
 impl Database {
     pub fn new(directory: PathBuf) -> Self {
-        let connection: Connection = match Connection::open(format!("{}/data.db", directory.to_string_lossy().to_string())) {
+        let connection: Connection = match Connection::open(directory.join("data.db")) {
             Ok(connection) => connection,
             Err(_) => panic!("Could not create or access database file!")
         };
 
         // Ensure tables exist
-        let _ = connection.execute_batch("
-            BEGIN;
+        let _ = connection.execute("
             CREATE TABLE IF NOT EXISTS Songs (
                 id TEXT PRIMARY KEY NOT NULL,
                 name TEXT NOT NULL,
@@ -42,19 +41,17 @@ impl Database {
                 duration_s INT NOT NULL,
                 downloaded INT NOT NULL
             );
-            COMMIT;
-        ");
+        ",[]);
 
         Self { connection, directory }
     }
 
     pub fn add_song_to_cache(&self, song: &Song) {
-        let _ = self.connection.execute_batch(format!("
-            BEGIN;
+        let _ = self.connection.execute(format!("
             INSERT INTO Songs
             VALUES('{}', '{}', '{}', '{}', {}, {});
         ", song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }
-        ).as_str());
+        ).as_str(),[]);
     }
 
     pub fn add_songs_to_cache(&self, songs: &Vec<Song>) {
@@ -98,7 +95,6 @@ impl Database {
         let mut pattern = self.connection.prepare("SELECT * FROM Songs WHERE name LIKE ? OR artist LIKE ?").unwrap();
         pattern.query_map(params![like_query, like_query], |row| {
             Ok({
-                println!("DB row match found");
                 let id = row.get::<_, String>(0).unwrap();
                 let name = row.get::<_, String>(1).unwrap();
                 let artist = row.get::<_, String>(2).unwrap();
@@ -108,7 +104,7 @@ impl Database {
                     Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(&id))) },
                     Err(_) => None
                 };
-                Song::new(id, name, artist, album, duration_s, downloaded)
+                Song::new(name, artist, album, id, duration_s, downloaded)
             })
         }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>()
     }
