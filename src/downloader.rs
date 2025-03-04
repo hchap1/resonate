@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use crate::application::Message;
 use crate::music::Song;
 
-pub async fn download(directory: PathBuf, target: Song) -> Message {
+pub async fn download(directory: PathBuf, mut target: Song) -> Message {
     let task_path = directory.join(PathBuf::from(format!("{}.mp3", target.id)));
     println!("[WORKER] Using task_path {}", task_path.to_string_lossy().to_string());
     if task_path.exists() {
@@ -32,6 +32,7 @@ pub async fn download(directory: PathBuf, target: Song) -> Message {
 
     println!("[WORKER] Waiting for download {}", target.name);
     let _ = handle.wait();
+    target.file = Some(task_path);
     println!("[WORKER] SuccessfulDownload({})", target.name);
     Message::SuccessfulDownload(target)
 }

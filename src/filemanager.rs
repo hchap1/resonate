@@ -114,7 +114,7 @@ impl Database {
     }
 
     pub fn update(&self, song: Song) {
-        let sql = "UPDATE Songs SET name = ?, artist = ?, album = ?, duration_s = ?, downloaded = ? WHERE id = ?";
-        self.connection.execute(sql, params![song.name, song.artist, song.album, song.duration, match song.file { Some(_) => 1, None => 0 }]);
+        let sql = "UPDATE Songs SET downloaded = ? WHERE id = ?";
+        let _ = self.connection.execute(sql, params![match song.file { Some(_) => 1, None => 0 }, song.id]);
     }
 }

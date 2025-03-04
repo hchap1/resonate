@@ -22,7 +22,7 @@ use crate::widgets::song_widget;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
-    Quit,
+    _Quit,
     Search,
     SearchBarInput(String),
     SearchResults(Vec<Song>),
@@ -30,7 +30,6 @@ pub enum Message {
     ToggleYTSearch(bool),
     Download(Song, PathBuf),
     SuccessfulDownload(Song),
-    Downloading(Song)
 }
 
 // The underlying application state
@@ -83,7 +82,7 @@ impl Application {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Quit => iced::exit::<Message>(),
+            Message::_Quit => iced::exit::<Message>(),
 
             Message::Search => {
                 if self.search_bar.len() == 0 {
@@ -140,6 +139,7 @@ impl Application {
                     if !self.download_queue.contains(&s) { self.download_queue.push(s); }
                     Task::none()
                 } else {
+                    self.currently_download_songs.insert(s.clone());
                     Task::future(download(d, s)).map(|msg| msg)
                 }
             }
@@ -153,7 +153,8 @@ impl Application {
                 let mut buf = self.buffer.lock().unwrap();
                 for s in buf.iter_mut() {
                     if s.id == song.id {
-                        s.file = song.file.clone()
+                        println!("[RUNTIME] Updated current view of {}", song.name);
+                        s.file = song.file.clone();
                     }
                 }
                 let database = self.database.lock().unwrap();
@@ -161,11 +162,6 @@ impl Application {
                 let directory = database.get_directory();
 
                 if self.download_queue.is_empty() { Task::none() } else { Task::future(download(directory, self.download_queue.remove(0))) }
-            }
-
-            Message::Downloading(song) => {
-                self.currently_download_songs.insert(song);
-                Task::none()
             }
         }
     }

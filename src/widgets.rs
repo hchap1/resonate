@@ -17,7 +17,7 @@ impl ResonateColour {
     pub fn green() -> Color { Self::new(20, 140, 20) }
     pub fn red() -> Color { Self::new(140, 20, 20) }
     pub fn blue() -> Color { Self::new(9, 84, 141) }
-    pub fn yellow() -> Color { Self::new(20, 60, 60) }
+    pub fn yellow() -> Color { Self::new(120, 120, 50) }
 
     pub fn darken(color: Color) -> Color { Color::from_rgb(color.r * 0.8, color.g * 0.8, color.b * 0.8) }
 }
@@ -102,6 +102,17 @@ pub fn search_bar(prompt: String, content: &String, toggle: bool) -> Element<'st
                 value: ResonateColour::text_emphasis(),
                 selection: ResonateColour::red()
             }))
+        .push(button("All").width(Length::FillPortion(1))
+            .style(|_theme: &Theme, style| button::Style {
+                background: match style {
+                    button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                    _ => Some(Background::Color(ResonateColour::blue()))
+                },
+                border: Border::default().rounded(10),
+                shadow: Shadow::default(),
+                text_color: ResonateColour::text(),
+            })
+            .on_press(Message::DumpDB))
         .push(toggler(toggle)
             .size(30)
             .on_toggle(Message::ToggleYTSearch)
