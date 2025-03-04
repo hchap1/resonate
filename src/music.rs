@@ -9,6 +9,7 @@ const DELIM: char = '͵'; // Unicode 0372, greek lower numeral sign
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Song {
+    pub sql_id: usize,
     pub name: String,
     pub artist: String,
     pub album: String,
@@ -17,36 +18,9 @@ pub struct Song {
     pub file: Option<PathBuf>
 }
 
-pub struct Playlist {
-    pub name: String,
-    pub songs: Vec<Song>
-}
-
 impl Song {
-    pub fn new(name: String, artist: String, album: String, id: String, duration: usize, file: Option<PathBuf>) -> Self {
-        Self { name, artist, album, id, duration, file }
-    }
-
-    pub fn example() -> Self {
-        Self::new(
-            String::from("TestSong"),
-            String::from("hchap1"),
-            String::from("Examples"),
-            String::from("123abc"),
-            10,
-            None
-        )
-    }
-
-    pub fn display(&self) -> String {
-        format!(
-            "{} by {} in {}. {} seconds, ID: {}. File: {}",
-            self.name, self.artist, self.album, self.duration, self.id,
-            match &self.file {
-                Some(path) => path.to_string_lossy().to_string(),
-                None => "Not downloaded.".to_string()
-            }
-        )
+    pub fn new(sql_id: usize, name: String, artist: String, album: String, id: String, duration: usize, file: Option<PathBuf>) -> Self {
+        Self { sql_id, name, artist, album, id, duration, file }
     }
 }
 
@@ -78,4 +52,16 @@ pub async fn cloud_search(query: String, database: AM<Database>) -> Message {
     let database = database.lock().unwrap();
     database.add_songs_to_cache(&results);
     Message::SearchResults(results)
+}
+
+pub struct Playlist {
+    pub id: usize,
+    pub name: String,
+    pub songs: Option<Vec<Song>>
+}
+
+impl Playlist {
+    pub fn new(id: usize, name: String, songs: Option<Vec<Song>>) -> Self {
+        Self { id, name, songs }
+    }
 }

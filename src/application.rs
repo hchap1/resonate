@@ -54,7 +54,10 @@ pub struct Application {
     use_online_search: bool,
 
     currently_download_songs: HashSet<Song>,
-    download_queue: Vec<Song>
+    download_queue: Vec<Song>,
+
+    // Targetted playlist
+    target_playlist: Playlist
 }
 
 impl std::default::Default for Application {

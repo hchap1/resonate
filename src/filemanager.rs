@@ -4,7 +4,7 @@ use directories::ProjectDirs;
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
 
-use crate::music::Song;
+use crate::music::{Playlist, Song};
 
 /// Creates and then returns the path to a suitable location for application data to be stored.
 /// If the path already exists, just return the path.
@@ -34,7 +34,8 @@ impl Database {
         // Ensure tables exist
         let _ = connection.execute("
             CREATE TABLE IF NOT EXISTS Songs (
-                id TEXT PRIMARY KEY NOT NULL,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ytid TEXT NOT NULL,
                 name TEXT NOT NULL,
                 artist TEXT NOT NULL,
                 album TEXT NOT NULL,
@@ -43,48 +44,67 @@ impl Database {
             );
         ",[]);
 
+        let _ = connection.execute("
+            CREATE TABLE IF NOT EXISTS Playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            );
+        ",[]);
+
+        let _ = connection.execute("
+            CREATE TABLE Contents (
+                playlist_id INTEGER,
+                song_id INTEGER,
+                PRIMARY KEY (playlist_id, song_id),
+                FOREIGN KEY (playlist_id) REFERENCES Playlists(id) ON DELETE CASCADE,
+                FOREIGN KEY (song_id) REFERENCES Songs(id) ON DELETE CASCADE
+            );
+        ",[]);
+
         Self { connection, directory }
     }
 
-    pub fn add_song_to_cache(&self, song: &Song) {
+    pub fn add_song_to_cache(&self, song: &mut Song) {
         let _ = self.connection.execute(format!("
             INSERT INTO Songs
             VALUES('{}', '{}', '{}', '{}', {}, {});
         ", song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }
         ).as_str(),[]);
+        song.sql_id = self.connection.last_insert_rowid() as usize;
     }
 
-    pub fn add_songs_to_cache(&self, songs: &Vec<Song>) {
-        songs.iter().for_each(|song| self.add_song_to_cache(song));
+    pub fn add_songs_to_cache(&self, songs: &mut Vec<Song>) {
+        songs.iter_mut().for_each(|mut song| self.add_song_to_cache(&mut song));
     }
 
     pub fn retrieve_all_songs(&self) -> Vec<Song> {
         // ID, name, artist, album, duration, exists
         let mut pattern = self.connection.prepare("SELECT * FROM Songs").unwrap();
         pattern.query_map([], |row| {
-            let id = row.get(0).unwrap();
-            let file = match row.get(5).unwrap() {
+            let id = row.get(1).unwrap();
+            let file = match row.get(6).unwrap() {
                 0 => None,
                 _ => Some(self.directory.join(PathBuf::from(&id)))
             };
             Ok(Song::new(
-                row.get(1).unwrap(),
+                row.get::<_, usize>(0).unwrap(),
                 row.get(2).unwrap(),
-                id,
                 row.get(3).unwrap(),
-                row.get::<_, usize>(4).unwrap(),
+                id,
+                row.get(4).unwrap(),
+                row.get::<_, usize>(5).unwrap(),
                 file
-            ) )
+            ))
         }).unwrap().map(|x| x.unwrap()).collect()
     }
 
-    pub fn hash_all_songs(&self) -> HashSet<String> {
-        let mut hash: HashSet<String> = HashSet::<String>::new();
+    pub fn hash_all_songs(&self) -> HashSet<usize> {
+        let mut hash: HashSet<usize> = HashSet::<usize>::new();
 
         // ID, name, artist, album, duration, exists
         let mut pattern = self.connection.prepare("SELECT id FROM Songs").unwrap();
         pattern.query_map([], |row| {
-            let id = row.get(0).unwrap();
+            let id = row.get::<_, usize>(0).unwrap();
             Ok(id)
         }).unwrap().for_each(|x| { hash.insert(x.unwrap()); });
         hash
@@ -95,16 +115,17 @@ impl Database {
         let mut pattern = self.connection.prepare("SELECT * FROM Songs WHERE name LIKE ? OR artist LIKE ?").unwrap();
         pattern.query_map(params![like_query, like_query], |row| {
             Ok({
-                let id = row.get::<_, String>(0).unwrap();
-                let name = row.get::<_, String>(1).unwrap();
-                let artist = row.get::<_, String>(2).unwrap();
-                let album = row.get::<_, String>(3).unwrap();
-                let duration_s = row.get::<_, usize>(4).unwrap();
-                let downloaded = match row.get::<_, usize>(5) {
+                let sql_id = row.get::<_, usize>(0).unwrap();
+                let id = row.get::<_, String>(1).unwrap();
+                let name = row.get::<_, String>(2).unwrap();
+                let artist = row.get::<_, String>(3).unwrap();
+                let album = row.get::<_, String>(4).unwrap();
+                let duration_s = row.get::<_, usize>(5).unwrap();
+                let downloaded = match row.get::<_, usize>(6) {
                     Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(&id))) },
                     Err(_) => None
                 };
-                Song::new(name, artist, album, id, duration_s, downloaded)
+                Song::new(sql_id, name, artist, album, id, duration_s, downloaded)
             })
         }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>()
     }
@@ -115,6 +136,53 @@ impl Database {
 
     pub fn update(&self, song: Song) {
         let sql = "UPDATE Songs SET downloaded = ? WHERE id = ?";
-        let _ = self.connection.execute(sql, params![match song.file { Some(_) => 1, None => 0 }, song.id]);
+        let _ = self.connection.execute(sql, params![match song.file { Some(_) => 1, None => 0 }, song.sql_id]);
+    }
+
+    pub fn load_song_by_id(&self, id: usize) -> Song {
+        let mut pattern = self.connection.prepare("SELECT * FROM Songs WHERE id = ?").unwrap();
+        pattern.query_map(params![id], |row| {
+            let sql_id = row.get::<_, usize>(0).unwrap();
+            let id = row.get::<_, String>(1).unwrap();
+            let name = row.get::<_, String>(2).unwrap();
+            let artist = row.get::<_, String>(3).unwrap();
+            let album = row.get::<_, String>(4).unwrap();
+            let duration_s = row.get::<_, usize>(5).unwrap();
+            let downloaded = match row.get::<_, usize>(6) {
+                Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(&id))) },
+                Err(_) => None
+            };
+            Ok(Song::new(sql_id, name, artist, album, id, duration_s, downloaded))
+        }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>().remove(0)
+    }
+
+    pub fn load_playlist(&self, playlist: &mut Playlist) {
+        let mut pattern = self.connection.prepare("SELECT song_id FROM Contents WHERE playlist_id = ?").unwrap();
+        playlist.songs = Some(
+            pattern.query_map(params![playlist.id], |row| {
+                Ok(self.load_song_by_id(row.get::<_, usize>(1).unwrap()))
+            }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>()
+        );
+    }
+
+    pub fn search_playlist_by_name(&self, query: String) -> Vec<Playlist> {
+        let like_query = format!("%{query}");
+        let mut pattern = self.connection.prepare("SELECT * FROM Playlists WHERE name LIKE ?").unwrap();
+        pattern.query_map(params![like_query, like_query], |row| {
+            Ok(Playlist {
+                id: row.get::<_, usize>(0).unwrap(),
+                name: row.get::<_, String>(1).unwrap(),
+                songs: None
+            })
+        }).unwrap().map(|playlist| playlist.unwrap()).collect()
+    }
+
+    pub fn get_playlist_by_id(&self, id: usize) -> Option<Playlist> {
+        let mut pattern = self.connection.prepare("SELECT * FROM Playlist WHERE id = ?").unwrap();
+        Some(pattern.query_map(params![id], |row| {
+            let mut playlist = Playlist::new(id, row.get::<_, String>(1).unwrap(), None);
+            self.load_playlist(&mut playlist);
+            Ok(playlist)
+        }).unwrap().map(|x| x.unwrap()).collect::<Vec<Playlist>>().remove(0))
     }
 }
