@@ -1,6 +1,6 @@
 use std::thread::{JoinHandle, spawn, sleep};
 use std::io::{BufReader, BufRead};
-use std::process::Command;
+use std::process::{Child, Command};
 use thirtyfour_sync::prelude::*;
 use std::time::Duration;
 use std::process::Stdio;
@@ -12,33 +12,32 @@ use crate::music::Song;
 use crate::utility::{AM, AMV, sync};
 
 struct DownloadTask {
-    
+    download_process: Child
 }
 
 impl DownloadTask {
-    pub fn new() -> Self {
-        let task_path = directory.join(PathBuf::from(format!("{}.mp3", self.target.id)));
+    pub fn new(directory: PathBuf, target: Song) -> Option<Self> {
+        let task_path = directory.join(PathBuf::from(format!("{}.mp3", target.id)));
         println!("[WORKER] Using task_path {}", task_path.to_string_lossy().to_string());
         if task_path.exists() {
-            return;
+            return None;
         }
 
-        let mut handle = Command::new("yt-dlp")
+        let handle = Command::new("yt-dlp")
             .arg("-f")
             .arg("bestaudio")
             .arg("--extract-audio")
             .arg("--audio-format")
             .arg("mp3")
             .arg("-o")
-            .arg(format!("{}/{}.mp3", directory.to_string_lossy().to_string(), self.target.id))
-            .arg(format!("https://music.youtube.com/watch?v={}", self.target.id))
+            .arg(format!("{}/{}.mp3", directory.to_string_lossy().to_string(), target.id))
+            .arg(format!("https://music.youtube.com/watch?v={}", target.id))
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn().unwrap();
 
-        let _ = handle.wait();
-
-        println!("[WORKER] finished downloading {}", self.target.name);
+        println!("[WORKER] finished downloading {}", target.name);
+        Some(Self{ download_process: handle })
     }
 }
 
