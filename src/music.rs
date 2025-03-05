@@ -40,7 +40,7 @@ pub async fn cloud_search(query: String, database: AM<Database>) -> Message {
     };
 
     // Async blocking call to search youtube music, this should take about 5-10 seconds
-    let results: Vec<Song> = tokio::task::spawn_blocking(move || {
+    let mut results: Vec<Song> = tokio::task::spawn_blocking(move || {
         search_youtube_music(query, directory)
             .unwrap()
             .into_iter()
@@ -50,10 +50,11 @@ pub async fn cloud_search(query: String, database: AM<Database>) -> Message {
 
     // Relock the mutex in order to cache the new songs
     let database = database.lock().unwrap();
-    database.add_songs_to_cache(&results);
+    database.add_songs_to_cache(&mut results);
     Message::SearchResults(results)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Playlist {
     pub id: usize,
     pub name: String,

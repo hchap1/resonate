@@ -67,7 +67,7 @@ impl Database {
     pub fn add_song_to_cache(&self, song: &mut Song) {
         let _ = self.connection.execute(format!("
             INSERT INTO Songs
-            VALUES('{}', '{}', '{}', '{}', {}, {});
+            VALUES(null, '{}', '{}', '{}', '{}', {}, {});
         ", song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }
         ).as_str(),[]);
         song.sql_id = self.connection.last_insert_rowid() as usize;
@@ -98,13 +98,13 @@ impl Database {
         }).unwrap().map(|x| x.unwrap()).collect()
     }
 
-    pub fn hash_all_songs(&self) -> HashSet<usize> {
-        let mut hash: HashSet<usize> = HashSet::<usize>::new();
+    pub fn hash_all_songs(&self) -> HashSet<String> {
+        let mut hash: HashSet<String> = HashSet::<String>::new();
 
         // ID, name, artist, album, duration, exists
-        let mut pattern = self.connection.prepare("SELECT id FROM Songs").unwrap();
+        let mut pattern = self.connection.prepare("SELECT ytid FROM Songs").unwrap();
         pattern.query_map([], |row| {
-            let id = row.get::<_, usize>(0).unwrap();
+            let id = row.get::<_, String>(0).unwrap();
             Ok(id)
         }).unwrap().for_each(|x| { hash.insert(x.unwrap()); });
         hash
@@ -184,5 +184,22 @@ impl Database {
             self.load_playlist(&mut playlist);
             Ok(playlist)
         }).unwrap().map(|x| x.unwrap()).collect::<Vec<Playlist>>().remove(0))
+    }
+
+    pub fn create_playlist(&self, name: String) -> Playlist {
+        self.connection.execute(format!("INSERT OR REPLACE INTO Playlists VALUES (null, {name})").as_str(),[]);
+        Playlist {
+            id: self.connection.last_insert_rowid() as usize,
+            name,
+            songs: Some(vec![])
+        }
+    }
+
+    pub fn add_song_to_playlist(&self, song: &Song, playlist: &mut Playlist) {
+        self.connection.execute(format!("
+            INSERT INTO Contents
+            VALUES({}, {})
+        ", playlist.id, song.sql_id).as_str(),[]);
+        playlist.songs.take().unwrap().push(song.clone());
     }
 }

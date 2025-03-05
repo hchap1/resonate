@@ -30,7 +30,28 @@ use iced::{
     Background, Border, Color, Element, Length, Shadow, Theme
 };
 
+use crate::music::Playlist;
 use crate::{application::Message, music::Song};
+
+pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
+    let row = Row::new()
+        .align_y(Vertical::Center)
+        .push(text(playlist.name).color(ResonateColour::text_emphasis()))
+        .push(text(playlist.id).color(ResonateColour::text()))
+        .height(Length::Shrink);
+
+    Container::new(row)
+        .padding(20)
+        .width(Length::Fill)
+        .center_y(Length::Fill)
+        .height(Length::Shrink)
+        .style(|_theme: &Theme| {
+            container::Style::default()
+                .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
+                .border(Border::default().rounded(15))
+        })
+        .into()
+}
 
 pub fn song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Element<'static, Message> {
     let song_clone = song.clone();
@@ -82,6 +103,45 @@ pub fn song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Elem
         .style(|_theme: &Theme| {
             container::Style::default()
                 .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
+                .border(Border::default().rounded(15))
+        })
+        .into()
+}
+
+pub fn playlist_search_bar(prompt: String, content: &String) -> Element<'static, Message> {
+    let widget = Row::new()
+        .spacing(20)
+        .push(text_input(prompt.as_str(), content)
+            .on_input(Message::SearchBarInput)
+            .on_submit(Message::SearchPlaylists)
+            .width(Length::FillPortion(1))
+            .style(|_theme: &Theme, _style| text_input::Style {
+                background: Background::Color(ResonateColour::accent()),
+                border: Border::default().rounded(10),
+                icon: ResonateColour::accent(),
+                placeholder: ResonateColour::text(),
+                value: ResonateColour::text_emphasis(),
+                selection: ResonateColour::red()
+            }))
+        .push(button("New Playlist")
+            .style(|_theme: &Theme, style| button::Style {
+                background: match style {
+                    button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                    _ => Some(Background::Color(ResonateColour::blue()))
+                },
+                border: Border::default().rounded(10),
+                shadow: Shadow::default(),
+                text_color: ResonateColour::text(),
+            })
+        .on_press(Message::NewPlaylist))
+        .align_y(Vertical::Center);
+    
+    Container::new(widget)
+        .padding(20)
+        .width(Length::Fill)
+        .style(|_theme: &Theme| {
+            container::Style::default()
+                .background(Background::Color(ResonateColour::foreground()))
                 .border(Border::default().rounded(15))
         })
         .into()

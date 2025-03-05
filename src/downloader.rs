@@ -135,7 +135,7 @@ pub fn search_youtube_music(query: String, directory: PathBuf) -> Result<Vec<Son
             false => None
         };
 
-        options.push(Song::new(song, artist, album, id, duration, downloaded));
+        options.push(Song::new(0, song, artist, album, id, duration, downloaded));
     }
 
     driver.quit().unwrap();

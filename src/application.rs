@@ -15,13 +15,16 @@ use std::collections::HashSet;
 use crate::downloader::download;
 use crate::filemanager::get_application_directory;
 use crate::filemanager::Database;
+use crate::music::Playlist;
 use crate::music::{Song, local_search, cloud_search};
 use crate::utility::*;
+use crate::widgets::playlist_search_bar;
 use crate::widgets::search_bar;
 use crate::widgets::song_widget;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
+    EnterSearchMode(Playlist),
     _Quit,
     Search,
     SearchBarInput(String),
@@ -30,6 +33,8 @@ pub enum Message {
     ToggleYTSearch(bool),
     Download(Song, PathBuf),
     SuccessfulDownload(Song),
+    SearchPlaylists,
+    NewPlaylist
 }
 
 // The underlying application state
@@ -37,7 +42,9 @@ pub enum Message {
 #[derive(Default, Clone, Eq, PartialEq)]
 pub enum State {
     #[default]
+    SearchPlaylists,
     Search,
+    MakePlaylist
 }
 
 pub struct Application {
@@ -48,6 +55,7 @@ pub struct Application {
     // Backends
     database: AM<Database>,
     buffer: AMV<Song>,
+    playlist_buffer: Vec<Playlist>,
     search_bar: String,
     
     active_search_threads: usize,
@@ -57,7 +65,7 @@ pub struct Application {
     download_queue: Vec<Song>,
 
     // Targetted playlist
-    target_playlist: Playlist
+    target_playlist: Option<Playlist>,
 }
 
 impl std::default::Default for Application {
@@ -77,7 +85,9 @@ impl Application {
             active_search_threads: 0,
             use_online_search: false,
             currently_download_songs: HashSet::<Song>::new(),
-            download_queue: Vec::<Song>::new()
+            download_queue: Vec::<Song>::new(),
+            target_playlist: None,
+            playlist_buffer: Vec::new()
         }
     }
 
@@ -166,12 +176,38 @@ impl Application {
 
                 if self.download_queue.is_empty() { Task::none() } else { Task::future(download(directory, self.download_queue.remove(0))) }
             }
+
+            Message::EnterSearchMode(p) => {
+                self.target_playlist = Some(p);
+                self.state = State::Search;
+                Task::none()
+            }
+
+            Message::SearchPlaylists => {
+                let database = self.database.lock().unwrap();
+                database.search_playlist_by_name(self.search_bar.clone());
+                self.search_bar.clear();
+                Task::none()
+            }
+
+            Message::NewPlaylist => {
+                self.state = State::MakePlaylist;
+                Task::none()
+            }
         }
     }
 
     pub fn view(&self) -> Element<Message> {
 
-        match self.state {
+        let widgets = match self.state {
+            State::SearchPlaylists => {
+                let playlist_list = Column::new()
+                    .push(playlist_search_bar(String::from("Search..."), &self.search_bar));
+
+                playlist_list
+                
+            }
+
             State::Search => {
                 let buf = self.buffer.lock().unwrap();
                 let dir = {
@@ -192,28 +228,33 @@ impl Application {
                     tasks_col = tasks_col.push(text(song.name.clone()));
                 }
 
-                let mut widgets = Column::new()
+                let widgets = Column::new()
                     .spacing(10)
-                    .push(search_bar("Search ...".to_string(), &self.search_bar, self.use_online_search))
+                    .push(search_bar("Search...".to_string(), &self.search_bar, self.use_online_search))
                     .push(tasks_col);
 
                 let mut song_columns: Column<Message> = Column::new().spacing(10);
                 for song in songs { song_columns = song_columns.push(song); }
 
                 let scrollable_song_list: Scrollable<Message> = Scrollable::new(song_columns);
-                widgets = widgets.push(scrollable_song_list);
+                widgets.push(scrollable_song_list)
 
-                Container::new(widgets)
-                    .padding(20)
-                    .style(|_theme| {
-                        container::Style::default().background(
-                            Background::Color(Color::from_rgb(0.1f32, 0.1f32, 0.1f32))
-                        )
-                    })
-                    .height(Length::Fill)
-                    .width(Length::Fill)
-                    .into()
             }
-        }
+
+            State::MakePlaylist => {
+                Column::new()
+                    .push()
+            }
+        };
+        Container::new(widgets)
+            .padding(20)
+            .style(|_theme| {
+                container::Style::default().background(
+                    Background::Color(Color::from_rgb(0.1f32, 0.1f32, 0.1f32))
+                )
+            })
+            .height(Length::Fill)
+            .width(Length::Fill)
+            .into()
     }
 }
