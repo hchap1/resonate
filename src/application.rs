@@ -27,7 +27,7 @@ use crate::widgets::playlist_name_widget;
 use crate::widgets::playlist_search_bar;
 use crate::widgets::playlist_widget;
 use crate::widgets::search_bar;
-use crate::widgets::song_widget;
+use crate::widgets::download_song_widget;
 use crate::widgets::ResonateColour;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -192,6 +192,9 @@ impl Application {
             }
 
             Message::EnterSearchMode(p) => {
+                self.search_bar.clear();
+                let mut buf = self.buffer.lock().unwrap();
+                buf.clear();
                 self.target_playlist = Some(p);
                 self.state = State::Search;
                 Task::none()
@@ -209,6 +212,8 @@ impl Application {
 
             Message::NewPlaylist => {
                 self.state = State::MakePlaylist;
+                self.search_bar.clear();
+                self.playlist_buffer.clear();
                 Task::none()
             }
 
@@ -234,6 +239,9 @@ impl Application {
 
             Message::AddSongs => {
                 self.state = State::Search;
+                self.search_bar.clear();
+                let mut buf = self.buffer.lock().unwrap();
+                buf.clear();
                 Task::none()
             }
         }
@@ -270,7 +278,7 @@ impl Application {
                     .iter()
                     .map(|song| {
                         let is_downloading = self.currently_download_songs.contains(&song);
-                        song_widget(song.clone(), dir.clone(), is_downloading)
+                        download_song_widget(song.clone(), dir.clone(), is_downloading)
                     })
                     .collect();
 
@@ -333,7 +341,7 @@ impl Application {
                     .iter()
                     .map(|song| {
                         let is_downloading = self.currently_download_songs.contains(&song);
-                        song_widget(song.clone(), dir.clone(), is_downloading)
+                        download_song_widget(song.clone(), dir.clone(), is_downloading)
                     })
                     .collect();
 

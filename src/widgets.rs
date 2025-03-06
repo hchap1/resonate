@@ -56,7 +56,7 @@ pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
         .into()
 }
 
-pub fn song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Element<'static, Message> {
+pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Element<'static, Message> {
     let song_clone = song.clone();
 
     let add_button = button("Add to Playlist")
@@ -90,9 +90,9 @@ pub fn song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Elem
             Column::new()
                 .push(title)
                 .push(artist)
-                .width(Length::FillPortion(4))
+                .width(Length::FillPortion(3))
         )
-        .push(album.width(Length::FillPortion(4)))
+        .push(album.width(Length::FillPortion(3)))
         .push(duration.width(Length::FillPortion(1)))
         .push(downloaded.width(Length::FillPortion(3)))
         .push(add_button.width(Length::FillPortion(1)))
