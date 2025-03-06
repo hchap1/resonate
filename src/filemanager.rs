@@ -75,7 +75,7 @@ impl Database {
             let id = row.get(1).unwrap();
             let file = match row.get(6).unwrap() {
                 0 => None,
-                _ => Some(self.directory.join(PathBuf::from(&id)))
+                _ => Some(self.directory.join(PathBuf::from(format!("{id}.mp3"))))
             };
             Ok(Song::new(
                 row.get::<_, usize>(0).unwrap(),
@@ -113,7 +113,7 @@ impl Database {
                 let album = row.get::<_, String>(4).unwrap();
                 let duration_s = row.get::<_, usize>(5).unwrap();
                 let downloaded = match row.get::<_, usize>(6) {
-                    Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(&id))) },
+                    Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(format!("{}.mp3", id)))) },
                     Err(_) => None
                 };
                 Song::new(sql_id, name, artist, album, id, duration_s, downloaded)

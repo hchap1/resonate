@@ -92,7 +92,7 @@ pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool
                 .push(artist)
                 .width(Length::FillPortion(3))
         )
-        .push(album.width(Length::FillPortion(3)))
+        .push(album.width(Length::FillPortion(2)))
         .push(duration.width(Length::FillPortion(1)))
         .push(downloaded.width(Length::FillPortion(3)))
         .push(add_button.width(Length::FillPortion(1)))
