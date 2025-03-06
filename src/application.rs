@@ -184,7 +184,7 @@ impl Application {
                 }
                 let database = self.database.lock().unwrap();
                 println!("[RUNTIME] About to add {}. Is_some: {}.", song.name, self.target_playlist.is_some());
-                database.add_song_to_playlist(&song, &mut self.target_playlist.take().unwrap());
+                database.add_song_to_playlist(&song, &mut self.target_playlist.as_mut().unwrap());
                 database.update(song);
                 let directory = database.get_directory();
 
@@ -226,7 +226,7 @@ impl Application {
                 let database = self.database.lock().unwrap();
                 let mut playlist = p.clone();
                 database.load_playlist(&mut playlist);
-                playlist.songs.take().unwrap().iter().for_each(|song| buf.push(song.clone()));
+                playlist.songs.as_ref().unwrap().iter().for_each(|song| buf.push(song.clone()));
                 self.target_playlist = Some(playlist);
                 self.state = State::Playlist;
                 Task::none()
