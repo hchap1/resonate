@@ -317,7 +317,6 @@ impl Application {
 
                 let widgets = Column::new()
                     .spacing(10)
-                    .align_x(Horizontal::Center)
                     .width(Length::Fill)
                     .push(text(name).size(50).color(ResonateColour::text_emphasis()))
                     .push(Row::new().spacing(10).push(
