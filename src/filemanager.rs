@@ -47,7 +47,7 @@ impl Database {
         let _ = connection.execute("
             CREATE TABLE IF NOT EXISTS Playlists (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE
+                name TEXT NOT NULL
             );
         ",[]);
 
@@ -62,15 +62,6 @@ impl Database {
         ",[]);
 
         Self { connection, directory }
-    }
-
-    pub fn add_song_to_cache(&self, song: &mut Song) {
-        let _ = self.connection.execute(format!("
-            INSERT INTO Songs
-            VALUES(null, '{}', '{}', '{}', '{}', {}, {});
-        ", song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }
-        ).as_str(),[]);
-        song.sql_id = self.connection.last_insert_rowid() as usize;
     }
 
     pub fn add_songs_to_cache(&self, songs: &mut Vec<Song>) {
@@ -160,7 +151,7 @@ impl Database {
         let mut pattern = self.connection.prepare("SELECT song_id FROM Contents WHERE playlist_id = ?").unwrap();
         playlist.songs = Some(
             pattern.query_map(params![playlist.id], |row| {
-                Ok(self.load_song_by_id(row.get::<_, usize>(1).unwrap()))
+                Ok(self.load_song_by_id(row.get::<_, usize>(0).unwrap()))
             }).unwrap().map(|x| x.unwrap()).collect::<Vec<Song>>()
         );
     }
@@ -168,13 +159,27 @@ impl Database {
     pub fn search_playlist_by_name(&self, query: String) -> Vec<Playlist> {
         let like_query = format!("%{query}");
         let mut pattern = self.connection.prepare("SELECT * FROM Playlists WHERE name LIKE ?").unwrap();
-        pattern.query_map(params![like_query, like_query], |row| {
+        pattern.query_map(params![like_query], |row| {
             Ok(Playlist {
                 id: row.get::<_, usize>(0).unwrap(),
                 name: row.get::<_, String>(1).unwrap(),
                 songs: None
             })
         }).unwrap().map(|playlist| playlist.unwrap()).collect()
+    }
+
+    pub fn dump_all_playlists(&self) -> Vec<Playlist> {
+        let mut pattern = self.connection.prepare("SELECT * FROM Playlists").unwrap();
+        let mut playlists = pattern.query_map([], |row| {
+            Ok(Playlist {
+                id: row.get::<_, usize>(0).unwrap(),
+                name: row.get::<_, String>(1).unwrap(),
+                songs: None
+            })
+        }).unwrap().map(|x| x.unwrap()).collect::<Vec<Playlist>>();
+
+        playlists.iter_mut().for_each(|playlist| self.load_playlist(playlist));
+        playlists
     }
 
     pub fn get_playlist_by_id(&self, id: usize) -> Option<Playlist> {
@@ -186,8 +191,21 @@ impl Database {
         }).unwrap().map(|x| x.unwrap()).collect::<Vec<Playlist>>().remove(0))
     }
 
+    pub fn add_song_to_cache(&self, song: &mut Song) {
+        let _ = self.connection.execute(format!("
+            INSERT INTO Songs
+            VALUES(null, '{}', '{}', '{}', '{}', {}, {});
+        ", song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }
+        ).as_str(),[]);
+        song.sql_id = self.connection.last_insert_rowid() as usize;
+    }
+
     pub fn create_playlist(&self, name: String) -> Playlist {
-        self.connection.execute(format!("INSERT OR REPLACE INTO Playlists VALUES (null, {name})").as_str(),[]);
+        let _ = self.connection.execute(format!("
+            INSERT INTO Playlists
+            VALUES(null, '{name}');
+        ").as_str(),[]);
+        println!("Created playlist. {} at ID {}", name, self.connection.last_insert_rowid());
         Playlist {
             id: self.connection.last_insert_rowid() as usize,
             name,
@@ -196,7 +214,7 @@ impl Database {
     }
 
     pub fn add_song_to_playlist(&self, song: &Song, playlist: &mut Playlist) {
-        self.connection.execute(format!("
+        let _ = self.connection.execute(format!("
             INSERT INTO Contents
             VALUES({}, {})
         ", playlist.id, song.sql_id).as_str(),[]);

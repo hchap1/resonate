@@ -1,15 +1,20 @@
 use std::path::PathBuf;
 
+use iced::alignment::Horizontal;
+use iced::widget::button;
 use iced::widget::container;
 use iced::widget::text;
 use iced::widget::Column;
 use iced::widget::Scrollable;
 use iced::Background;
+use iced::Border;
 use iced::Color;
 use iced::Length;
+use iced::Shadow;
 use iced::Task;
 use iced::widget::Container;
 use iced::Element;
+use iced::Theme;
 use std::collections::HashSet;
 
 use crate::downloader::download;
@@ -18,9 +23,12 @@ use crate::filemanager::Database;
 use crate::music::Playlist;
 use crate::music::{Song, local_search, cloud_search};
 use crate::utility::*;
+use crate::widgets::playlist_name_widget;
 use crate::widgets::playlist_search_bar;
+use crate::widgets::playlist_widget;
 use crate::widgets::search_bar;
 use crate::widgets::song_widget;
+use crate::widgets::ResonateColour;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
@@ -34,7 +42,10 @@ pub enum Message {
     Download(Song, PathBuf),
     SuccessfulDownload(Song),
     SearchPlaylists,
-    NewPlaylist
+    NewPlaylist,
+    CreateNewPlaylist,
+    OpenPlaylist(Playlist),
+    AddSongs
 }
 
 // The underlying application state
@@ -44,7 +55,8 @@ pub enum State {
     #[default]
     SearchPlaylists,
     Search,
-    MakePlaylist
+    MakePlaylist,
+    Playlist
 }
 
 pub struct Application {
@@ -144,7 +156,7 @@ impl Application {
 
             Message::Download(s, d) => {
 
-                if self.currently_download_songs.contains(&s) {
+                if self.currently_download_songs.contains(&s) || s.file.is_some() {
                     return Task::none()
                 }
 
@@ -161,7 +173,7 @@ impl Application {
             Message::SuccessfulDownload(song) => {
                 println!("[RUNTIME] Received successful download of {}", song.name);
                 self.currently_download_songs.remove(&song);
-                
+
                 // Update song view
                 let mut buf = self.buffer.lock().unwrap();
                 for s in buf.iter_mut() {
@@ -171,6 +183,8 @@ impl Application {
                     }
                 }
                 let database = self.database.lock().unwrap();
+                println!("[RUNTIME] About to add {}. Is_some: {}.", song.name, self.target_playlist.is_some());
+                database.add_song_to_playlist(&song, &mut self.target_playlist.take().unwrap());
                 database.update(song);
                 let directory = database.get_directory();
 
@@ -184,14 +198,42 @@ impl Application {
             }
 
             Message::SearchPlaylists => {
+                println!("[RUNTIME] Searching {}", self.search_bar);
                 let database = self.database.lock().unwrap();
-                database.search_playlist_by_name(self.search_bar.clone());
+                self.playlist_buffer = 
+                    if self.search_bar.len() > 0 { database.search_playlist_by_name(self.search_bar.clone()) } 
+                    else { database.dump_all_playlists() };
                 self.search_bar.clear();
                 Task::none()
             }
 
             Message::NewPlaylist => {
                 self.state = State::MakePlaylist;
+                Task::none()
+            }
+
+            Message::CreateNewPlaylist => {
+                let database = self.database.lock().unwrap();
+                database.create_playlist(self.search_bar.clone());
+                self.search_bar.clear();
+                self.state = State::SearchPlaylists;
+                Task::none()
+            }
+
+            Message::OpenPlaylist(p) => {
+                let mut buf = self.buffer.lock().unwrap();
+                buf.clear();
+                let database = self.database.lock().unwrap();
+                let mut playlist = p.clone();
+                database.load_playlist(&mut playlist);
+                playlist.songs.take().unwrap().iter().for_each(|song| buf.push(song.clone()));
+                self.target_playlist = Some(playlist);
+                self.state = State::Playlist;
+                Task::none()
+            }
+
+            Message::AddSongs => {
+                self.state = State::Search;
                 Task::none()
             }
         }
@@ -201,11 +243,21 @@ impl Application {
 
         let widgets = match self.state {
             State::SearchPlaylists => {
-                let playlist_list = Column::new()
+                let widgets = Column::new()
+                    .spacing(10)
                     .push(playlist_search_bar(String::from("Search..."), &self.search_bar));
 
-                playlist_list
-                
+                let mut playlist_list = Column::new().spacing(10);
+
+                let p = 
+                    if self.playlist_buffer.len() > 0 { self.playlist_buffer.clone() }
+                    else { let db = self.database.lock().unwrap(); db.dump_all_playlists() };
+
+                for playlist in p.into_iter() {
+                    playlist_list = playlist_list.push(playlist_widget(playlist.clone()))
+                }
+
+                widgets.push(Scrollable::new(playlist_list))
             }
 
             State::Search => {
@@ -222,16 +274,19 @@ impl Application {
                     })
                     .collect();
 
-                let mut tasks_col = Column::new().push(text("CURRENT DOWNLOAD TASKS"));
+                let name = match &self.target_playlist {
+                    Some(playlist) => playlist.name.clone(),
+                    None => String::from("NO PLAYLIST")
+                };
 
-                for song in self.currently_download_songs.iter() {
-                    tasks_col = tasks_col.push(text(song.name.clone()));
-                }
+                let playlist = self.target_playlist.as_ref().unwrap().clone();
 
                 let widgets = Column::new()
                     .spacing(10)
-                    .push(search_bar("Search...".to_string(), &self.search_bar, self.use_online_search))
-                    .push(tasks_col);
+                    .push(text(name).size(50).color(ResonateColour::text_emphasis()))
+                    .push(button("Back to Playlist")
+                        .on_press(Message::OpenPlaylist(playlist)))
+                    .push(search_bar("Search...".to_string(), &self.search_bar, self.use_online_search));
 
                 let mut song_columns: Column<Message> = Column::new().spacing(10);
                 for song in songs { song_columns = song_columns.push(song); }
@@ -243,7 +298,50 @@ impl Application {
 
             State::MakePlaylist => {
                 Column::new()
-                    .push()
+                    .push(playlist_name_widget(String::from("Enter Playlist Name"), &self.search_bar))
+            }
+
+            State::Playlist => {
+                let name = match &self.target_playlist {
+                    Some(playlist) => playlist.name.clone(),
+                    None => String::from("404 - Braincell not found.")
+                };
+
+                let widgets = Column::new()
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill)
+                    .push(text(name).size(50).color(ResonateColour::text_emphasis()))
+                    .push(button("Add Songs")
+                        .style(|_theme: &Theme, style| button::Style {
+                            background: match style {
+                                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                                _ => Some(Background::Color(ResonateColour::blue()))
+                            },
+                            border: Border::default().rounded(10),
+                            shadow: Shadow::default(),
+                            text_color: ResonateColour::text(),
+                        })
+                        .on_press(Message::AddSongs)
+                    );
+
+                let buf = self.buffer.lock().unwrap();
+                let dir = {
+                    let db = self.database.lock().unwrap();
+                    db.get_directory()
+                };
+                let songs: Vec<Element<Message>> = buf
+                    .iter()
+                    .map(|song| {
+                        let is_downloading = self.currently_download_songs.contains(&song);
+                        song_widget(song.clone(), dir.clone(), is_downloading)
+                    })
+                    .collect();
+
+                let mut song_columns: Column<Message> = Column::new().spacing(10);
+                for song in songs { song_columns = song_columns.push(song); }
+
+                let scrollable_song_list: Scrollable<Message> = Scrollable::new(song_columns);
+                widgets.push(scrollable_song_list)
             }
         };
         Container::new(widgets)
