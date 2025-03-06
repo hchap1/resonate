@@ -140,7 +140,7 @@ impl Database {
             let album = row.get::<_, String>(4).unwrap();
             let duration_s = row.get::<_, usize>(5).unwrap();
             let downloaded = match row.get::<_, usize>(6) {
-                Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(&id))) },
+                Ok(d) => if d == 0 { None } else { Some(self.directory.join(PathBuf::from(format!("{id}.mp3")))) },
                 Err(_) => None
             };
             Ok(Song::new(sql_id, name, artist, album, id, duration_s, downloaded))

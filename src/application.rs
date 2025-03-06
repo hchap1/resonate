@@ -1,38 +1,38 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use iced::alignment::Horizontal;
-use iced::widget::button;
-use iced::widget::container;
-use iced::widget::text;
-use iced::widget::Column;
+use iced::widget::Row;
 use iced::widget::Scrollable;
+use iced::widget::Container;
+use iced::widget::container;
+use iced::widget::Column;
+use iced::widget::button;
+use iced::widget::text;
 use iced::Background;
-use iced::Border;
-use iced::Color;
+use iced::Element;
 use iced::Length;
 use iced::Shadow;
-use iced::Task;
-use iced::widget::Container;
-use iced::Element;
+use iced::Border;
 use iced::Theme;
-use std::collections::HashSet;
+use iced::Color;
+use iced::Task;
 
-use crate::downloader::download;
-use crate::filemanager::get_application_directory;
-use crate::filemanager::Database;
-use crate::music::Playlist;
 use crate::music::{Song, local_search, cloud_search};
-use crate::utility::*;
+use crate::filemanager::get_application_directory;
 use crate::widgets::playlist_name_widget;
+use crate::widgets::download_song_widget;
 use crate::widgets::playlist_search_bar;
 use crate::widgets::playlist_widget;
-use crate::widgets::search_bar;
-use crate::widgets::download_song_widget;
 use crate::widgets::ResonateColour;
+use crate::filemanager::Database;
+use crate::downloader::download;
+use crate::widgets::search_bar;
+use crate::music::Playlist;
+use crate::utility::*;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
-    EnterSearchMode(Playlist),
     _Quit,
     Search,
     SearchBarInput(String),
@@ -45,7 +45,8 @@ pub enum Message {
     NewPlaylist,
     CreateNewPlaylist,
     OpenPlaylist(Playlist),
-    AddSongs
+    AddSongs,
+    Homepage
 }
 
 // The underlying application state
@@ -191,15 +192,6 @@ impl Application {
                 if self.download_queue.is_empty() { Task::none() } else { Task::future(download(directory, self.download_queue.remove(0))) }
             }
 
-            Message::EnterSearchMode(p) => {
-                self.search_bar.clear();
-                let mut buf = self.buffer.lock().unwrap();
-                buf.clear();
-                self.target_playlist = Some(p);
-                self.state = State::Search;
-                Task::none()
-            }
-
             Message::SearchPlaylists => {
                 println!("[RUNTIME] Searching {}", self.search_bar);
                 let database = self.database.lock().unwrap();
@@ -222,6 +214,14 @@ impl Application {
                 database.create_playlist(self.search_bar.clone());
                 self.search_bar.clear();
                 self.state = State::SearchPlaylists;
+                Task::none()
+            }
+
+            Message::Homepage => {
+                self.search_bar.clear();
+                self.state = State::SearchPlaylists;
+                let database = self.database.lock().unwrap();
+                self.playlist_buffer = database.dump_all_playlists();
                 Task::none()
             }
 
@@ -316,10 +316,12 @@ impl Application {
                 };
 
                 let widgets = Column::new()
+                    .spacing(10)
                     .align_x(Horizontal::Center)
                     .width(Length::Fill)
                     .push(text(name).size(50).color(ResonateColour::text_emphasis()))
-                    .push(button("Add Songs")
+                    .push(Row::new().spacing(10).push(
+                        button("Add Songs")
                         .style(|_theme: &Theme, style| button::Style {
                             background: match style {
                                 button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
@@ -330,7 +332,20 @@ impl Application {
                             text_color: ResonateColour::text(),
                         })
                         .on_press(Message::AddSongs)
-                    );
+                    )
+                    .push(
+                        button("Home")
+                        .style(|_theme: &Theme, style| button::Style {
+                            background: match style {
+                                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                                _ => Some(Background::Color(ResonateColour::blue()))
+                            },
+                            border: Border::default().rounded(10),
+                            shadow: Shadow::default(),
+                            text_color: ResonateColour::text(),
+                        })
+                        .on_press(Message::Homepage)
+                    ));
 
                 let buf = self.buffer.lock().unwrap();
                 let dir = {
