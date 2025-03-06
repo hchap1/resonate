@@ -218,6 +218,9 @@ impl Database {
             INSERT INTO Contents
             VALUES({}, {})
         ", playlist.id, song.sql_id).as_str(),[]);
-        playlist.songs.take().unwrap().push(song.clone());
+        match &mut playlist.songs {
+            Some(songs) => songs.push(song.clone()),
+            None => playlist.songs = Some(vec![song.clone()])
+        }
     }
 }

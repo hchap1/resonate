@@ -26,8 +26,8 @@ pub async fn download(directory: PathBuf, mut target: Song) -> Message {
         .arg("-o")
         .arg(format!("{}/{}.mp3", directory.to_string_lossy().to_string(), target.id))
         .arg(format!("https://music.youtube.com/watch?v={}", target.id))
-        // .stdout(std::process::Stdio::null())
-        //.stderr(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn().unwrap();
 
     println!("[WORKER] Waiting for download {}", target.name);
