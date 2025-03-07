@@ -185,7 +185,7 @@ impl Application {
             Message::SuccessfulDownload(song) => {
                 println!("[RUNTIME] Received successful download of {}", song.name);
                 let mut songs_to_remove: Vec<Song> = Vec::new();
-                self.currently_download_songs.iter().for_each(|song| if song.sql_id == song.sql_id { songs_to_remove.push(song.clone()); });
+                self.currently_download_songs.iter().for_each(|cs| if cs.sql_id == song.sql_id { songs_to_remove.push(cs.clone()); });
                 for song in songs_to_remove {
                     println!("Dequeued {}", song.name);
                     self.currently_download_songs.remove(&song);
