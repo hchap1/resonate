@@ -52,7 +52,8 @@ pub enum Message {
     Play(Song),
     Pause,
     Resume,
-    Queue(Song)
+    Queue(Song),
+    Skip
 }
 
 // The underlying application state
@@ -290,6 +291,11 @@ impl Application {
 
             Message::Queue(s) => {
                 self.audio_player.queue_song(s);
+                Task::none()
+            }
+
+            Message::Skip => {
+                self.audio_player.skip_song();
                 Task::none()
             }
         }

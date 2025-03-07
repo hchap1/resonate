@@ -88,7 +88,9 @@ impl AudioPlayer {
         let mut queue = self.queue.lock().unwrap();
         queue.push_back(song);
         let mut current = self.current.lock().unwrap();
-        *current = Some(queue[queue.len() - 1].clone());
+        if current.is_none() {
+            *current = Some(queue[0].clone());
+        }
     }
 
     pub fn play(&mut self, song: Song) {
@@ -113,6 +115,14 @@ impl AudioPlayer {
     pub fn skip_song(&mut self) {
         let sink = self.sink.lock().unwrap();
         println!("[AUDIO] Song skipped");
+        let queue = self.queue.lock().unwrap();
+        if queue.len() > 0 {
+            let mut current = self.current.lock().unwrap();
+            *current = Some(queue[0].clone());
+        } else {
+            let mut current = self.current.lock().unwrap();
+            *current = None;
+        }
         sink.skip_one();
     }
 

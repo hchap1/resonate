@@ -133,6 +133,39 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
         None => (String::from("Current song will appear here"), String::from("-"), String::from("-"), 0)
     };
 
+    let button_colour = if is_paused { ResonateColour::green() } else { ResonateColour::red() };
+
+    let pause_button = button( if is_paused { "Resume" } else { "Pause" })
+        .style(move |_theme: &Theme, style| button::Style {
+            background: match style {
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(button_colour))),
+                _ => Some(Background::Color(button_colour))
+            },
+            border: Border::default().rounded(10),
+            shadow: Shadow::default(),
+            text_color: ResonateColour::text_emphasis(),
+        })
+        .on_press(
+            match is_paused {
+                true => Message::Resume,
+                false => Message::Pause
+            }
+        );
+
+    let skip_button = button("Skip")
+        .style(move |_theme: &Theme, style| button::Style {
+            background: match style {
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                _ => Some(Background::Color(ResonateColour::blue()))
+            },
+            border: Border::default().rounded(10),
+            shadow: Shadow::default(),
+            text_color: ResonateColour::text_emphasis(),
+        })
+        .on_press(
+            Message::Skip
+        );
+
     let title = text(name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(artist).color(ResonateColour::text());
     let album = text(album).color(ResonateColour::text());
@@ -140,7 +173,7 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
 
     let mut widgets = Column::new()
         .spacing(10)
-        .push(Row::new()
+        .push(Container::new(Row::new()
             .spacing(30)
             .push(
                 Column::new()
@@ -150,7 +183,18 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
             )
             .push(album.width(Length::FillPortion(2)))
             .push(duration.width(Length::FillPortion(1)))
-            .align_y(Vertical::Center));
+            .align_y(Vertical::Center))
+            .width(Length::Fill)
+            .style(|_theme: &Theme| {
+                container::Style::default()
+                    .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
+                    .border(Border::default().rounded(15))
+            })
+            .height(Length::Shrink))
+            .push(Row::new()
+                .push(pause_button)
+                .push(skip_button)
+        );
 
     for song in queue {
         let display = Row::new()
@@ -167,12 +211,7 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
         .padding(20)
         .width(Length::Fill)
         .center_y(Length::Fill)
-        .height(Length::Shrink)
-        .style(|_theme: &Theme| {
-            container::Style::default()
-                .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
-                .border(Border::default().rounded(15))
-        })
+        .height(Length::Fill)
         .into()
 }
 
