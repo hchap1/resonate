@@ -205,7 +205,11 @@ impl Application {
                 database.update(song);
                 let directory = database.get_directory();
                 
-                if self.download_queue.is_empty() { Task::none() } else { Task::future(download(directory, self.download_queue.remove(0))) }
+                if self.download_queue.is_empty() { Task::none() } else {
+                    let song = self.download_queue.remove(0);
+                    self.currently_download_songs.insert(song.clone());
+                    Task::future(download(directory, song))
+                }
             }
 
             Message::SearchPlaylists => {
@@ -294,7 +298,8 @@ impl Application {
                     .iter()
                     .map(|song| {
                         let is_downloading = self.currently_download_songs.contains(&song);
-                        download_song_widget(song.clone(), dir.clone(), is_downloading)
+                        let is_queued = !is_downloading && self.download_queue.contains(&song);
+                        download_song_widget(song.clone(), dir.clone(), is_downloading, is_queued)
                     })
                     .collect();
 

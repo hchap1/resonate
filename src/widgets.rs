@@ -100,7 +100,7 @@ pub fn display_song_widget(song: Song) -> Element<'static, Message> {
         .into()
 }
 
-pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Element<'static, Message> {
+pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool, is_queued: bool) -> Element<'static, Message> {
     let song_clone = song.clone();
 
     let add_button = button("Add to Playlist")
@@ -117,11 +117,11 @@ pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool
 
     let downloaded = text(match song.file.clone() {
         Some(p) => p.to_string_lossy().to_string(),
-        None => if is_downloading { String::from("DOWNLOADING") } else { String::from("Not downloaded.") }
+        None => if is_downloading { String::from("DOWNLOADING") } else if is_queued { String::from("QUEUED") } else { String::from("Not downloaded.") }
     })
         .color(match song.file {
             Some(_) => ResonateColour::green(),
-            None => if is_downloading { ResonateColour::yellow() } else { ResonateColour::text() }
+            None => if is_downloading { ResonateColour::yellow() } else if is_queued { ResonateColour::red() } else { ResonateColour::text() }
         });
     let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(song.artist).color(ResonateColour::text());
