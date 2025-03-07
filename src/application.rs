@@ -17,7 +17,10 @@ use iced::Border;
 use iced::Theme;
 use iced::Color;
 use iced::Task;
+use rand::rng;
+use rand::seq::SliceRandom;
 
+use crate::audio::get_progress;
 use crate::music::{Song, local_search, cloud_search};
 use crate::filemanager::get_application_directory;
 use crate::widgets::playlist_name_widget;
@@ -34,7 +37,7 @@ use crate::audio::AudioPlayer;
 use crate::music::Playlist;
 use crate::utility::*;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Quit,
     Search,
@@ -54,12 +57,14 @@ pub enum Message {
     Pause,
     Resume,
     Queue(Song),
-    Skip
+    Skip,
+    ShuffleCurrent,
+    ProgressUpdate(f32)
 }
 
 // The underlying application state
 
-#[derive(Default, Clone, Eq, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 pub enum State {
     #[default]
     SearchPlaylists,
@@ -88,7 +93,10 @@ pub struct Application {
     // Targetted playlist
     target_playlist: Option<Playlist>,
 
-    audio_player: AudioPlayer
+    audio_player: AudioPlayer,
+    progress: f32,
+    progress_source: AM<f32>,
+    is_progress_running: bool
 }
 
 impl std::default::Default for Application {
@@ -100,6 +108,10 @@ impl std::default::Default for Application {
 
 impl Application {
     pub fn new(database: Database) -> Self {
+
+        let audio_player = AudioPlayer::new().unwrap();
+        let progress_source = audio_player.get_progress_source();
+
         Self {
             state: State::default(),
             database: sync(database),
@@ -111,14 +123,17 @@ impl Application {
             download_queue: Vec::<Song>::new(),
             target_playlist: None,
             playlist_buffer: Vec::new(),
-            audio_player: AudioPlayer::new().unwrap()
+            audio_player,
+            progress: 0f32,
+            progress_source,
+            is_progress_running: false
         }
     }
 
     fn get_db_ref(&self) -> AM<Database> { self.database.clone() }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
+        let task = match message {
             Message::Quit => iced::exit::<Message>(),
 
             Message::Search => {
@@ -299,7 +314,33 @@ impl Application {
                 self.audio_player.skip_song();
                 Task::none()
             }
+
+            Message::ShuffleCurrent => {
+                let mut rng = rng();
+                let mut playlist = match &self.target_playlist {
+                    Some(p) => p.songs.as_ref().unwrap().clone(),
+                    None => Vec::<Song>::new()
+                };
+                playlist.shuffle(&mut rng);
+                playlist.into_iter().for_each(|song| self.audio_player.queue_song(song));
+                Task::none()
+            }
+            
+            Message::ProgressUpdate(v) => {
+                self.progress = v;
+                println!("[RUNTIME] Progress query");
+                Task::<Message>::future(get_progress(self.progress_source.clone()))
+            }
+        };
+
+        match self.is_progress_running {
+            true => task,
+            false => {
+                self.is_progress_running = true;
+                Task::batch( vec![ task, Task::<Message>::future(get_progress(self.progress_source.clone())) ])
+            }
         }
+
     }
 
     pub fn view(&self) -> Element<Message> {
@@ -375,7 +416,7 @@ impl Application {
                     .spacing(10)
                     .width(Length::Fill)
                     .push(text(name).size(50).color(ResonateColour::text_emphasis()))
-                    .push(Row::new().spacing(10).push(
+                    .push(Row::new().spacing(20).push(
                         button("Add Songs")
                         .style(|_theme: &Theme, style| button::Style {
                             background: match style {
@@ -399,8 +440,19 @@ impl Application {
                             shadow: Shadow::default(),
                             text_color: ResonateColour::text(),
                         })
-                        .on_press(Message::Homepage)
-                    ));
+                        .on_press(Message::Homepage))
+                    .push(
+                        button("Shuffle")
+                        .style(|_theme: &Theme, style| button::Style {
+                            background: match style {
+                                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::green()))),
+                                _ => Some(Background::Color(ResonateColour::green()))
+                            },
+                            border: Border::default().rounded(10),
+                            shadow: Shadow::default(),
+                            text_color: ResonateColour::text_emphasis(),
+                        })
+                        .on_press(Message::ShuffleCurrent)));
 
                 let songs: Vec<Element<Message>> = self.target_playlist.as_ref().unwrap().songs.as_ref().unwrap()
                     .iter()
@@ -420,9 +472,9 @@ impl Application {
         let display_split = Row::new()
             .align_y(Vertical::Top)
             .spacing(10)
-            .push(widgets.width(Length::FillPortion(3)))
+            .push(widgets.width(Length::FillPortion(2)))
             .push(
-                queue_widget(self.audio_player.get_current(), self.audio_player.get_queue(), self.audio_player.is_paused()
+                queue_widget(self.audio_player.get_current(), self.audio_player.get_queue(), self.audio_player.is_paused(), self.progress
             ));
 
         Container::new(display_split)

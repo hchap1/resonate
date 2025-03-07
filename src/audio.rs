@@ -11,6 +11,7 @@ use rodio::Decoder;
 use rodio::OutputStream;
 use rodio::OutputStreamHandle;
 
+use crate::application::Message;
 use crate::utility::*;
 use crate::music::Song;
 
@@ -23,10 +24,11 @@ pub struct AudioPlayer {
 
     sink: AM<Sink>,
     queue: AMQ<Song>,
-    current: AMO<Song>
+    current: AMO<Song>,
+    progress: AM<f32>
 }
 
-pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>) {
+pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>, progress: AM<f32>) {
     let sleep_duration = Duration::from_secs(1);
     loop {
         sleep(sleep_duration);
@@ -35,6 +37,8 @@ pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>) {
 
         // If we need to queue the next song
         if sink.empty() {
+            let mut progress = progress.lock().unwrap();
+            *progress = 0f32;
             let mut queue = queue.lock().unwrap();
             let mut current = current.lock().unwrap();
             *current = queue.pop_front();
@@ -47,6 +51,9 @@ pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>) {
             let file = BufReader::new(File::open(song.file.as_ref().unwrap()).unwrap());
             let source = Decoder::new(file).unwrap();
             sink.append(source);
+        } else if !sink.is_paused() {
+            let mut progress = progress.lock().unwrap();
+            *progress += sleep_duration.as_secs() as f32;
         }
     }
 }
@@ -66,12 +73,14 @@ impl AudioPlayer {
         let sink = sync(sink);
         let queue = sync(VecDeque::new());
         let current = sync(None);
+        let progress = sync(0f32);
 
         let sink_clone = sink.clone();
         let queue_clone = queue.clone();
         let current_clone = current.clone();
+        let progress_clone = progress.clone();
 
-        let _queue_handle = spawn(move || queueing_thread(sink_clone, queue_clone, current_clone));
+        let _queue_handle = spawn(move || queueing_thread(sink_clone, queue_clone, current_clone, progress_clone));
 
         Ok(Self {
             _stream: stream,
@@ -79,7 +88,8 @@ impl AudioPlayer {
             sink,
             queue,
             current,
-            _queue_handle
+            _queue_handle,
+            progress
         })
     }
 
@@ -181,4 +191,12 @@ impl AudioPlayer {
         } else { false };
         if remove_first { r[1..].to_vec() } else { r }
     }
+    
+    pub fn get_progress_source(&self) -> AM<f32> { self.progress.clone() }
+}
+
+pub async fn get_progress(progress_source: AM<f32>) -> Message {
+    let progress = progress_source.lock().unwrap();
+    sleep(Duration::from_secs(1));
+    Message::ProgressUpdate(*progress)
 }

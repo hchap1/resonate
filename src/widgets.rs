@@ -1,5 +1,7 @@
+use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
+use iced::widget::{ProgressBar, Scrollable};
 use iced::alignment::Vertical;
 
 pub struct ResonateColour;
@@ -131,8 +133,9 @@ pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Ele
         .into()
 }
 
-pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) -> Element<'static, Message> {
+pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, progress: f32) -> Element<'static, Message> {
 
+    let current_clone = current.clone();
     let (name, artist, album, duration) = match current {
         Some(song) => (song.name, song.artist, song.album, song.duration),
         None => (String::from("Current song will appear here"), String::from("-"), String::from("-"), 0)
@@ -176,7 +179,7 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
     let album = text(album).color(ResonateColour::text());
     let duration = text(format!("{} seconds", duration)).color(ResonateColour::text());
 
-    let mut widgets = Column::new()
+    let widgets = Column::new()
         .spacing(10)
         .push(Container::new(Row::new()
             .spacing(30)
@@ -195,12 +198,23 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
                     .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
                     .border(Border::default().rounded(15))
             })
+            .padding(20)
+            .center_y(Length::Fill)
             .height(Length::Shrink))
+            .push(
+                match current_clone {
+                    Some(song) => ProgressBar::new(RangeInclusive::new(0f32, song.duration as f32), progress),
+                    None => ProgressBar::new(RangeInclusive::new(0f32, 1f32), 0f32)
+                }
+            )
             .push(Row::new()
                 .spacing(10)
                 .push(pause_button)
                 .push(skip_button)
         );
+
+    let mut queue_col = Column::new()
+        .spacing(20);
 
     for song in queue {
         let display = Container::new(Row::new()
@@ -213,14 +227,14 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
                 container::Style::default()
                     .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
                     .border(Border::default().rounded(15))
-            });
-        widgets = widgets.push(display);
+            })
+            .padding(10);
+        queue_col = queue_col.push(display.width(Length::Fill));
     }
 
-    Container::new(widgets)
+    Container::new(widgets.push(Scrollable::new(queue_col)))
         .padding(20)
         .width(Length::Fill)
-        .center_y(Length::Fill)
         .height(Length::Fill)
         .into()
 }
