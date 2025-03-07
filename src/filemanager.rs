@@ -192,19 +192,19 @@ impl Database {
     }
 
     pub fn add_song_to_cache(&self, song: &mut Song) {
-        let _ = self.connection.execute(format!("
+        let _ = self.connection.execute("
             INSERT INTO Songs
-            VALUES(null, '{}', '{}', '{}', '{}', {}, {});
-        ", song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }
-        ).as_str(),[]);
+            VALUES(null, ?1, ?2, ?3, ?4, ?5, ?6);
+        ",
+        params![song.id, song.name, song.artist, song.album, song.duration, if song.file == None { 0 } else { 1 }]);
         song.sql_id = self.connection.last_insert_rowid() as usize;
     }
 
     pub fn create_playlist(&self, name: String) -> Playlist {
-        let _ = self.connection.execute(format!("
+        let _ = self.connection.execute("
             INSERT INTO Playlists
-            VALUES(null, '{name}');
-        ").as_str(),[]);
+            VALUES(null, ?1);
+        ",params![name]);
         println!("Created playlist. {} at ID {}", name, self.connection.last_insert_rowid());
         Playlist {
             id: self.connection.last_insert_rowid() as usize,
@@ -214,10 +214,10 @@ impl Database {
     }
 
     pub fn add_song_to_playlist(&self, song: &Song, playlist: &mut Playlist) {
-        let _ = self.connection.execute(format!("
+        let _ = self.connection.execute("
             INSERT INTO Contents
-            VALUES({}, {})
-        ", playlist.id, song.sql_id).as_str(),[]);
+            VALUES(?1, ?2)
+        ", params![playlist.id, song.sql_id]);
         match &mut playlist.songs {
             Some(songs) => songs.push(song.clone()),
             None => playlist.songs = Some(vec![song.clone()])

@@ -56,6 +56,50 @@ pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
         .into()
 }
 
+pub fn display_song_widget(song: Song) -> Element<'static, Message> {
+    let play_button = button("Play")
+        .style(|_theme: &Theme, style| button::Style {
+            background: match style {
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::green()))),
+                _ => Some(Background::Color(ResonateColour::green()))
+            },
+            border: Border::default().rounded(10),
+            shadow: Shadow::default(),
+            text_color: ResonateColour::text_emphasis(),
+        })
+        .on_press(Message::Quit);
+
+    let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
+    let artist = text(song.artist).color(ResonateColour::text());
+    let album = text(song.album).color(ResonateColour::text());
+    let duration = text(format!("{} seconds", song.duration)).color(ResonateColour::text());
+
+    let row = Row::new()
+        .spacing(30)
+        .push(
+            Column::new()
+                .push(title)
+                .push(artist)
+                .width(Length::FillPortion(3))
+        )
+        .push(album.width(Length::FillPortion(2)))
+        .push(duration.width(Length::FillPortion(1)))
+        .push(play_button.width(Length::FillPortion(1)))
+        .align_y(Vertical::Center);
+
+    Container::new(row)
+        .padding(20)
+        .width(Length::Fill)
+        .center_y(Length::Fill)
+        .height(Length::Shrink)
+        .style(|_theme: &Theme| {
+            container::Style::default()
+                .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
+                .border(Border::default().rounded(15))
+        })
+        .into()
+}
+
 pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool) -> Element<'static, Message> {
     let song_clone = song.clone();
 
@@ -67,7 +111,7 @@ pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool
             },
             border: Border::default().rounded(10),
             shadow: Shadow::default(),
-            text_color: ResonateColour::text(),
+            text_color: ResonateColour::text_emphasis(),
         })
         .on_press_with(move || Message::Download(song_clone.clone(), directory.clone()));
 

@@ -99,7 +99,7 @@ pub fn search_youtube_music(query: String, directory: PathBuf) -> Result<Vec<Son
     let mut lines = songs.text().unwrap().lines().skip(1).map(|x| x.to_string()).collect::<Vec<String>>();
     let mut options: Vec<Song> = Vec::<Song>::new();
 
-    while lines.len() >= 7 {
+    while lines.len() >= 7 && url_list.len() > 0 {
         let song = lines.remove(0);
         let mut artist = lines.remove(0);
         loop {

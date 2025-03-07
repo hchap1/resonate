@@ -20,6 +20,7 @@ use iced::Task;
 
 use crate::music::{Song, local_search, cloud_search};
 use crate::filemanager::get_application_directory;
+use crate::widgets::display_song_widget;
 use crate::widgets::playlist_name_widget;
 use crate::widgets::download_song_widget;
 use crate::widgets::playlist_search_bar;
@@ -33,7 +34,7 @@ use crate::utility::*;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Message {
-    _Quit,
+    Quit,
     Search,
     SearchBarInput(String),
     SearchResults(Vec<Song>),
@@ -108,7 +109,7 @@ impl Application {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::_Quit => iced::exit::<Message>(),
+            Message::Quit => iced::exit::<Message>(),
 
             Message::Search => {
                 if self.search_bar.len() == 0 {
@@ -158,6 +159,8 @@ impl Application {
             Message::Download(s, d) => {
 
                 if self.currently_download_songs.contains(&s) || s.file.is_some() {
+                    let database = self.database.lock().unwrap();
+                    database.add_song_to_playlist(&s, &mut self.target_playlist.as_mut().unwrap());
                     return Task::none()
                 }
 
@@ -188,7 +191,7 @@ impl Application {
                 database.add_song_to_playlist(&song, &mut self.target_playlist.as_mut().unwrap());
                 database.update(song);
                 let directory = database.get_directory();
-
+                
                 if self.download_queue.is_empty() { Task::none() } else { Task::future(download(directory, self.download_queue.remove(0))) }
             }
 
@@ -347,15 +350,10 @@ impl Application {
                     ));
 
                 let buf = self.buffer.lock().unwrap();
-                let dir = {
-                    let db = self.database.lock().unwrap();
-                    db.get_directory()
-                };
                 let songs: Vec<Element<Message>> = buf
                     .iter()
                     .map(|song| {
-                        let is_downloading = self.currently_download_songs.contains(&song);
-                        download_song_widget(song.clone(), dir.clone(), is_downloading)
+                        display_song_widget(song.clone())
                     })
                     .collect();
 
