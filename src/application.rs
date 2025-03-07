@@ -251,7 +251,6 @@ impl Application {
                 let database = self.database.lock().unwrap();
                 let mut playlist = p.clone();
                 database.load_playlist(&mut playlist);
-                playlist.songs.as_ref().unwrap().iter().for_each(|song| buf.push(song.clone()));
                 self.target_playlist = Some(playlist);
                 self.state = State::Playlist;
                 Task::none()
@@ -367,8 +366,7 @@ impl Application {
                         .on_press(Message::Homepage)
                     ));
 
-                let buf = self.buffer.lock().unwrap();
-                let songs: Vec<Element<Message>> = buf
+                let songs: Vec<Element<Message>> = self.target_playlist.as_ref().unwrap().songs.as_ref().unwrap()
                     .iter()
                     .map(|song| {
                         display_song_widget(song.clone())
