@@ -56,18 +56,25 @@ pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
         .into()
 }
 
-pub fn display_song_widget(song: Song) -> Element<'static, Message> {
-    let play_button = button("Play")
-        .style(|_theme: &Theme, style| button::Style {
+pub fn display_song_widget(song: Song, is_playing: bool) -> Element<'static, Message> {
+    let song_clone = song.clone();
+
+    let button_colour = match is_playing {
+        true => ResonateColour::red(),
+        false => ResonateColour::green()
+    };
+
+    let play_button = button( if is_playing { "Pause" } else { "Play" })
+        .style(move |_theme: &Theme, style| button::Style {
             background: match style {
-                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::green()))),
-                _ => Some(Background::Color(ResonateColour::green()))
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(button_colour))),
+                _ => Some(Background::Color(button_colour))
             },
             border: Border::default().rounded(10),
             shadow: Shadow::default(),
             text_color: ResonateColour::text_emphasis(),
         })
-        .on_press(Message::Quit);
+        .on_press(Message::Play(song_clone));
 
     let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(song.artist).color(ResonateColour::text());

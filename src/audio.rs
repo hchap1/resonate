@@ -1,15 +1,16 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::collections::VecDeque;
+use std::thread::JoinHandle;
 use std::time::Duration;
 use std::thread::sleep;
+use std::thread::spawn;
 
 use rodio::Sink;
 use rodio::Decoder;
 use rodio::OutputStream;
 use rodio::OutputStreamHandle;
 
-use crate::application::Message;
 use crate::utility::*;
 use crate::music::Song;
 
@@ -18,6 +19,7 @@ pub struct AudioPlayer {
     // Required to keep audio in scope
     _stream: OutputStream,
     _handle: OutputStreamHandle,
+    _queue_handle: JoinHandle<()>,
 
     sink: AM<Sink>,
     queue: AMQ<Song>,
@@ -61,12 +63,23 @@ impl AudioPlayer {
             Err(_) => return Err(())
         };
 
+        let sink = sync(sink);
+        let queue = sync(VecDeque::new());
+        let current = sync(None);
+
+        let sink_clone = sink.clone();
+        let queue_clone = queue.clone();
+        let current_clone = current.clone();
+
+        let _queue_handle = spawn(move || queueing_thread(sink_clone, queue_clone, current_clone));
+
         Ok(Self {
             _stream: stream,
             _handle: handle,
-            sink: sync(sink),
-            queue: sync(VecDeque::new()),
-            current: sync(None)
+            sink,
+            queue,
+            current,
+            _queue_handle
         })
     }
 
@@ -117,6 +130,14 @@ impl AudioPlayer {
         match current.as_ref() {
             Some(song_ref) => Some(song_ref.clone()),
             None => None
+        }
+    }
+
+    pub fn is_this_playing(&self, song: &Song) -> bool {
+        let current = self.current.lock().unwrap();
+        match current.as_ref() {
+            Some(song_ref) => song_ref.sql_id == song.sql_id,
+            None => false
         }
     }
 }

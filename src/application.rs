@@ -19,15 +19,16 @@ use iced::Task;
 
 use crate::music::{Song, local_search, cloud_search};
 use crate::filemanager::get_application_directory;
-use crate::widgets::display_song_widget;
 use crate::widgets::playlist_name_widget;
 use crate::widgets::download_song_widget;
+use crate::widgets::display_song_widget;
 use crate::widgets::playlist_search_bar;
 use crate::widgets::playlist_widget;
 use crate::widgets::ResonateColour;
 use crate::filemanager::Database;
 use crate::downloader::download;
 use crate::widgets::search_bar;
+use crate::audio::AudioPlayer;
 use crate::music::Playlist;
 use crate::utility::*;
 
@@ -47,7 +48,7 @@ pub enum Message {
     OpenPlaylist(Playlist),
     AddSongs,
     Homepage,
-    SongFinished
+    Play(Song)
 }
 
 // The underlying application state
@@ -80,6 +81,8 @@ pub struct Application {
 
     // Targetted playlist
     target_playlist: Option<Playlist>,
+
+    audio_player: AudioPlayer
 }
 
 impl std::default::Default for Application {
@@ -101,7 +104,8 @@ impl Application {
             currently_download_songs: HashSet::<Song>::new(),
             download_queue: Vec::<Song>::new(),
             target_playlist: None,
-            playlist_buffer: Vec::new()
+            playlist_buffer: Vec::new(),
+            audio_player: AudioPlayer::new().unwrap()
         }
     }
 
@@ -264,8 +268,8 @@ impl Application {
                 Task::none()
             }
 
-            Message::SongFinished => {
-                println!("Song finished!");
+            Message::Play(s) => {
+                self.audio_player.insert_song(s);
                 Task::none()
             }
         }
@@ -374,7 +378,7 @@ impl Application {
                 let songs: Vec<Element<Message>> = self.target_playlist.as_ref().unwrap().songs.as_ref().unwrap()
                     .iter()
                     .map(|song| {
-                        display_song_widget(song.clone())
+                        display_song_widget(song.clone(), self.audio_player.is_this_playing(&song))
                     })
                     .collect();
 
