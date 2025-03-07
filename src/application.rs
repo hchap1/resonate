@@ -158,17 +158,25 @@ impl Application {
 
             Message::Download(s, d) => {
 
-                if self.currently_download_songs.contains(&s) || s.file.is_some() {
-                    let database = self.database.lock().unwrap();
-                    database.add_song_to_playlist(&s, &mut self.target_playlist.as_mut().unwrap());
+                println!("DOWNLOAD REQUEST FOR: {}", s.name);
+
+                if self.currently_download_songs.contains(&s) || s.file.is_some() || self.download_queue.contains(&s) {
+                    if s.file.is_some() {
+                        let database = self.database.lock().unwrap();
+                        database.add_song_to_playlist(&s, &mut self.target_playlist.as_mut().unwrap());
+                        println!("Added to playlist.");
+                    }
+                    println!("Refused request.");
                     return Task::none()
                 }
 
                 if self.currently_download_songs.len() >= 4 {
                     if !self.download_queue.contains(&s) { self.download_queue.push(s); }
+                    println!("Queued, workers occupied.");
                     Task::none()
                 } else {
                     self.currently_download_songs.insert(s.clone());
+                    println!("Downloading.");
                     Task::future(download(d, s)).map(|msg| msg)
                 }
             }
@@ -176,7 +184,12 @@ impl Application {
             // When a song is successfully downloaded, update the database and redraw
             Message::SuccessfulDownload(song) => {
                 println!("[RUNTIME] Received successful download of {}", song.name);
-                self.currently_download_songs.remove(&song);
+                let mut songs_to_remove: Vec<Song> = Vec::new();
+                self.currently_download_songs.iter().for_each(|song| if song.sql_id == song.sql_id { songs_to_remove.push(song.clone()); });
+                for song in songs_to_remove {
+                    println!("Dequeued {}", song.name);
+                    self.currently_download_songs.remove(&song);
+                }
 
                 // Update song view
                 let mut buf = self.buffer.lock().unwrap();
