@@ -4,6 +4,7 @@ mod downloader;
 mod utility;
 mod widgets;
 mod music;
+mod audio;
 
 use crate::application::Application;
 

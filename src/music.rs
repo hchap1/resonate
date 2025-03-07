@@ -60,9 +60,3 @@ pub struct Playlist {
     pub name: String,
     pub songs: Option<Vec<Song>>
 }
-
-impl Playlist {
-    pub fn new(id: usize, name: String, songs: Option<Vec<Song>>) -> Self {
-        Self { id, name, songs }
-    }
-}

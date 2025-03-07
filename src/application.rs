@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use iced::alignment::Horizontal;
 use iced::widget::Row;
 use iced::widget::Scrollable;
 use iced::widget::Container;
@@ -47,7 +46,8 @@ pub enum Message {
     CreateNewPlaylist,
     OpenPlaylist(Playlist),
     AddSongs,
-    Homepage
+    Homepage,
+    SongFinished
 }
 
 // The underlying application state
@@ -261,6 +261,11 @@ impl Application {
                 self.search_bar.clear();
                 let mut buf = self.buffer.lock().unwrap();
                 buf.clear();
+                Task::none()
+            }
+
+            Message::SongFinished => {
+                println!("Song finished!");
                 Task::none()
             }
         }

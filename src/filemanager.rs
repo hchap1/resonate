@@ -182,15 +182,6 @@ impl Database {
         playlists
     }
 
-    pub fn get_playlist_by_id(&self, id: usize) -> Option<Playlist> {
-        let mut pattern = self.connection.prepare("SELECT * FROM Playlist WHERE id = ?").unwrap();
-        Some(pattern.query_map(params![id], |row| {
-            let mut playlist = Playlist::new(id, row.get::<_, String>(1).unwrap(), None);
-            self.load_playlist(&mut playlist);
-            Ok(playlist)
-        }).unwrap().map(|x| x.unwrap()).collect::<Vec<Playlist>>().remove(0))
-    }
-
     pub fn add_song_to_cache(&self, song: &mut Song) {
         let _ = self.connection.execute("
             INSERT INTO Songs

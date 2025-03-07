@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 directories = "6.0.0"
 iced = { version = "0.13.1", features = ["tokio", "advanced"] }
+rodio = "0.20.1"
 rusqlite = "0.33.0"
 thirtyfour_sync = "0.27.1"
 tokio = "1.43.0"
