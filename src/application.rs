@@ -24,6 +24,7 @@ use crate::widgets::download_song_widget;
 use crate::widgets::display_song_widget;
 use crate::widgets::playlist_search_bar;
 use crate::widgets::playlist_widget;
+use crate::widgets::queue_widget;
 use crate::widgets::ResonateColour;
 use crate::filemanager::Database;
 use crate::downloader::download;
@@ -50,7 +51,8 @@ pub enum Message {
     Homepage,
     Play(Song),
     Pause,
-    Resume
+    Resume,
+    Queue(Song)
 }
 
 // The underlying application state
@@ -285,6 +287,11 @@ impl Application {
                 self.audio_player.resume();
                 Task::none()
             }
+
+            Message::Queue(s) => {
+                self.audio_player.queue_song(s);
+                Task::none()
+            }
         }
     }
 
@@ -402,7 +409,15 @@ impl Application {
                 widgets.push(scrollable_song_list)
             }
         };
-        Container::new(widgets)
+
+        let display_split = Row::new()
+            .spacing(10)
+            .push(widgets.width(Length::FillPortion(3)))
+            .push(
+                queue_widget(self.audio_player.get_current(), self.audio_player.get_queue(), self.audio_player.is_paused()
+            ));
+
+        Container::new(display_split)
             .padding(20)
             .style(|_theme| {
                 container::Style::default().background(

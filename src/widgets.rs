@@ -58,6 +58,7 @@ pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
 
 pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Element<'static, Message> {
     let song_clone = song.clone();
+    let second_song_clone = song.clone();
 
     let button_colour = match is_playing && !is_paused {
         true => ResonateColour::red(),
@@ -81,6 +82,18 @@ pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Ele
             }
         );
 
+    let queue_widget = button("Queue")
+        .style(move |_theme: &Theme, style| button::Style {
+            background: match style {
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                _ => Some(Background::Color(ResonateColour::blue()))
+            },
+            border: Border::default().rounded(10),
+            shadow: Shadow::default(),
+            text_color: ResonateColour::text_emphasis(),
+        })
+        .on_press(Message::Queue(second_song_clone));
+
     let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(song.artist).color(ResonateColour::text());
     let album = text(song.album).color(ResonateColour::text());
@@ -97,9 +110,60 @@ pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Ele
         .push(album.width(Length::FillPortion(2)))
         .push(duration.width(Length::FillPortion(1)))
         .push(play_button.width(Length::FillPortion(1)))
+        .push(queue_widget.width(Length::FillPortion(1)))
         .align_y(Vertical::Center);
 
     Container::new(row)
+        .padding(20)
+        .width(Length::Fill)
+        .center_y(Length::Fill)
+        .height(Length::Shrink)
+        .style(|_theme: &Theme| {
+            container::Style::default()
+                .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
+                .border(Border::default().rounded(15))
+        })
+        .into()
+}
+
+pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) -> Element<'static, Message> {
+
+    let (name, artist, album, duration) = match current {
+        Some(song) => (song.name, song.artist, song.album, song.duration),
+        None => (String::from("Current song will appear here"), String::from("-"), String::from("-"), 0)
+    };
+
+    let title = text(name).color(ResonateColour::text_emphasis()).size(25);
+    let artist = text(artist).color(ResonateColour::text());
+    let album = text(album).color(ResonateColour::text());
+    let duration = text(format!("{} seconds", duration)).color(ResonateColour::text());
+
+    let mut widgets = Column::new()
+        .spacing(10)
+        .push(Row::new()
+            .spacing(30)
+            .push(
+                Column::new()
+                    .push(title)
+                    .push(artist)
+                    .width(Length::FillPortion(3))
+            )
+            .push(album.width(Length::FillPortion(2)))
+            .push(duration.width(Length::FillPortion(1)))
+            .align_y(Vertical::Center));
+
+    for song in queue {
+        let display = Row::new()
+            .spacing(20)
+            .align_y(Vertical::Center)
+            .push(text(song.name))
+            .push(text(song.artist))
+            .push(text(song.album));
+
+        widgets = widgets.push(display);
+    }
+
+    Container::new(widgets)
         .padding(20)
         .width(Length::Fill)
         .center_y(Length::Fill)
@@ -295,5 +359,6 @@ pub fn playlist_name_widget(prompt: String, content: &String) -> Element<'static
                 .background(Background::Color(ResonateColour::foreground()))
                 .border(Border::default().rounded(15))
         })
+        .width(Length::FillPortion(1))
         .into()
 }

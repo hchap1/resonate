@@ -87,9 +87,12 @@ impl AudioPlayer {
     pub fn queue_song(&mut self, song: Song) {
         let mut queue = self.queue.lock().unwrap();
         queue.push_back(song);
+        let mut current = self.current.lock().unwrap();
+        *current = Some(queue[queue.len() - 1].clone());
     }
 
     pub fn play(&mut self, song: Song) {
+        self.resume();
         println!("[AUDIO] Received play command for {}", song.name);
         self.insert_song(song.clone());
         println!("[AUDIO] Added song to queue");
@@ -103,6 +106,8 @@ impl AudioPlayer {
     pub fn insert_song(&mut self, song: Song) {
         let mut queue = self.queue.lock().unwrap();
         queue.push_front(song);
+        let mut current = self.current.lock().unwrap();
+        *current = Some(queue[0].clone());
     }
 
     pub fn skip_song(&mut self) {
@@ -152,5 +157,18 @@ impl AudioPlayer {
             Some(song_ref) => song_ref.sql_id == song.sql_id,
             None => false
         }
+    }
+
+    pub fn get_queue(&self) -> Vec<Song> {
+        let queue = self.queue.lock().unwrap();
+        let r: Vec<Song> = queue.clone().into();
+        let remove_first = if let Some(c) = self.get_current() {
+            if r.len() > 0 {
+                if r[0].sql_id == c.sql_id {
+                    true
+                } else { false }
+            } else { false }
+        } else { false };
+        if remove_first { r[1..].to_vec() } else { r }
     }
 }
