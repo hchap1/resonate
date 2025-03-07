@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+use iced::alignment::Vertical;
 use iced::widget::Row;
 use iced::widget::Scrollable;
 use iced::widget::Container;
@@ -417,6 +418,7 @@ impl Application {
         };
 
         let display_split = Row::new()
+            .align_y(Vertical::Top)
             .spacing(10)
             .push(widgets.width(Length::FillPortion(3)))
             .push(

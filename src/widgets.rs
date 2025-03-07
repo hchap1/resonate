@@ -50,8 +50,13 @@ pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
             container::Style::default()
                 .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
                 .border(Border::default().rounded(15))
+        }))
+        .style(|_theme: &Theme, _style| button::Style {
+            background: None,
+            text_color: ResonateColour::text_emphasis(),
+            border: Border::default().width(0),
+            shadow: Shadow::default()
         })
-    )
         .on_press(Message::OpenPlaylist(playlist_clone))
         .into()
 }
@@ -183,7 +188,7 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
             )
             .push(album.width(Length::FillPortion(2)))
             .push(duration.width(Length::FillPortion(1)))
-            .align_y(Vertical::Center))
+            .align_y(Vertical::Top))
             .width(Length::Fill)
             .style(|_theme: &Theme| {
                 container::Style::default()
@@ -192,18 +197,23 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool) ->
             })
             .height(Length::Shrink))
             .push(Row::new()
+                .spacing(10)
                 .push(pause_button)
                 .push(skip_button)
         );
 
     for song in queue {
-        let display = Row::new()
+        let display = Container::new(Row::new()
             .spacing(20)
             .align_y(Vertical::Center)
-            .push(text(song.name))
-            .push(text(song.artist))
-            .push(text(song.album));
-
+            .push(text(song.name).color(ResonateColour::text_emphasis()))
+            .push(text(song.artist).color(ResonateColour::text()))
+            .push(text(song.album).color(ResonateColour::text())))
+            .style(|_theme: &Theme| {
+                container::Style::default()
+                    .background(Background::Color(Color::from_rgb(0.15f32, 0.15f32, 0.15f32)))
+                    .border(Border::default().rounded(15))
+            });
         widgets = widgets.push(display);
     }
 
