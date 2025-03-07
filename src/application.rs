@@ -48,7 +48,9 @@ pub enum Message {
     OpenPlaylist(Playlist),
     AddSongs,
     Homepage,
-    Play(Song)
+    Play(Song),
+    Pause,
+    Resume
 }
 
 // The underlying application state
@@ -269,7 +271,18 @@ impl Application {
             }
 
             Message::Play(s) => {
-                self.audio_player.insert_song(s);
+                println!("[RUNTIME] Queueing play of {}", s.name);
+                self.audio_player.play(s);
+                Task::none()
+            }
+
+            Message::Pause => {
+                self.audio_player.pause();
+                Task::none()
+            }
+
+            Message::Resume => {
+                self.audio_player.resume();
                 Task::none()
             }
         }
@@ -378,7 +391,7 @@ impl Application {
                 let songs: Vec<Element<Message>> = self.target_playlist.as_ref().unwrap().songs.as_ref().unwrap()
                     .iter()
                     .map(|song| {
-                        display_song_widget(song.clone(), self.audio_player.is_this_playing(&song))
+                        display_song_widget(song.clone(), self.audio_player.is_this_playing(&song), self.audio_player.is_paused())
                     })
                     .collect();
 

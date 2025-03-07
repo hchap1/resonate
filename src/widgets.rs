@@ -56,15 +56,15 @@ pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
         .into()
 }
 
-pub fn display_song_widget(song: Song, is_playing: bool) -> Element<'static, Message> {
+pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Element<'static, Message> {
     let song_clone = song.clone();
 
-    let button_colour = match is_playing {
+    let button_colour = match is_playing && !is_paused {
         true => ResonateColour::red(),
         false => ResonateColour::green()
     };
 
-    let play_button = button( if is_playing { "Pause" } else { "Play" })
+    let play_button = button( if is_playing { if is_paused { "Resume" } else { "Pause" } } else { "Play" })
         .style(move |_theme: &Theme, style| button::Style {
             background: match style {
                 button::Status::Hovered => Some(Background::Color(ResonateColour::darken(button_colour))),
@@ -74,7 +74,12 @@ pub fn display_song_widget(song: Song, is_playing: bool) -> Element<'static, Mes
             shadow: Shadow::default(),
             text_color: ResonateColour::text_emphasis(),
         })
-        .on_press(Message::Play(song_clone));
+        .on_press(
+            match is_playing {
+                true => if is_paused { Message::Resume } else { Message::Pause }
+                false => Message::Play(song_clone)
+            }
+        );
 
     let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(song.artist).color(ResonateColour::text());
@@ -130,6 +135,7 @@ pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool
             Some(_) => ResonateColour::green(),
             None => if is_downloading { ResonateColour::yellow() } else if is_queued { ResonateColour::red() } else { ResonateColour::text() }
         });
+
     let title = text(song.name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(song.artist).color(ResonateColour::text());
     let album = text(song.album).color(ResonateColour::text());

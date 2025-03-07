@@ -83,9 +83,21 @@ impl AudioPlayer {
         })
     }
 
+
     pub fn queue_song(&mut self, song: Song) {
         let mut queue = self.queue.lock().unwrap();
         queue.push_back(song);
+    }
+
+    pub fn play(&mut self, song: Song) {
+        println!("[AUDIO] Received play command for {}", song.name);
+        self.insert_song(song.clone());
+        println!("[AUDIO] Added song to queue");
+        self.skip_song();
+        println!("[AUDIO] Skipped current song");
+        let mut current = self.current.lock().unwrap();
+        *current = Some(song);
+        println!("[AUDIO] Updated current");
     }
 
     pub fn insert_song(&mut self, song: Song) {
@@ -94,8 +106,9 @@ impl AudioPlayer {
     }
 
     pub fn skip_song(&mut self) {
-        let mut queue = self.queue.lock().unwrap();
-        queue.pop_front();
+        let sink = self.sink.lock().unwrap();
+        println!("[AUDIO] Song skipped");
+        sink.skip_one();
     }
 
     pub fn pause(&self) {
