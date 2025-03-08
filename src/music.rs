@@ -5,8 +5,6 @@ use crate::filemanager::Database;
 use crate::downloader::search_youtube_music;
 use crate::utility::*;
 
-const DELIM: char = '͵'; // Unicode 0372, greek lower numeral sign
-
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Song {
     pub sql_id: usize,

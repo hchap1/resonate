@@ -70,6 +70,8 @@ impl AudioPlayer {
             Err(_) => return Err(())
         };
 
+        sink.set_volume(0.2);
+
         let sink = sync(sink);
         let queue = sync(VecDeque::new());
         let current = sync(None);
@@ -151,18 +153,6 @@ impl AudioPlayer {
         sink.is_paused()
     }
 
-    pub fn append(&mut self, songs: Vec<Song>) {
-        let mut queue = self.queue.lock().unwrap();
-        songs.into_iter().for_each(|song| queue.push_back(song));
-    }
-
-    pub fn clear(&mut self) {
-        let mut queue = self.queue.lock().unwrap();
-        let sink = self.sink.lock().unwrap();
-        queue.clear();
-        sink.clear();
-    }
-
     pub fn get_current(&self) -> Option<Song> {
         let current = self.current.lock().unwrap();
         match current.as_ref() {
@@ -190,6 +180,21 @@ impl AudioPlayer {
             } else { false }
         } else { false };
         if remove_first { r[1..].to_vec() } else { r }
+    }
+
+    pub fn slow(&self) {
+        let sink = self.sink.lock().unwrap();
+        sink.set_speed(0.6);
+    }
+
+    pub fn fast(&self) {
+        let sink = self.sink.lock().unwrap();
+        sink.set_speed(1.4);
+    }
+    
+    pub fn normal(&self) {
+        let sink = self.sink.lock().unwrap();
+        sink.set_speed(1f32)
     }
     
     pub fn get_progress_source(&self) -> AM<f32> { self.progress.clone() }
