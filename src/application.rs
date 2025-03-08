@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+use iced::alignment::Horizontal;
 use iced::alignment::Vertical;
 use iced::widget::Row;
 use iced::widget::Scrollable;
@@ -19,8 +20,10 @@ use iced::Color;
 use iced::Task;
 use rand::rng;
 use rand::seq::SliceRandom;
+use rfd::FileDialog;
 
 use crate::audio::get_progress;
+use crate::downloader::convert_and_save_song;
 use crate::music::{Song, local_search, cloud_search};
 use crate::filemanager::get_application_directory;
 use crate::widgets::playlist_name_widget;
@@ -29,6 +32,10 @@ use crate::widgets::display_song_widget;
 use crate::widgets::playlist_search_bar;
 use crate::widgets::playlist_widget;
 use crate::widgets::queue_widget;
+use crate::widgets::upload_album_entry;
+use crate::widgets::upload_artist_entry;
+use crate::widgets::upload_song_entry;
+use crate::widgets::container_field;
 use crate::widgets::ResonateColour;
 use crate::filemanager::Database;
 use crate::downloader::download;
@@ -61,7 +68,13 @@ pub enum Message {
     ProgressUpdate(f32),
     Slow,
     Normal,
-    Fast
+    Fast,
+    UploadFile,
+    FileSelected(Option<PathBuf>),
+    NameChanged(String),
+    ArtistChanged(String),
+    AlbumChanged(String),
+    AttemptAddingSong
 }
 
 // The underlying application state
@@ -72,7 +85,8 @@ pub enum State {
     SearchPlaylists,
     Search,
     MakePlaylist,
-    Playlist
+    Playlist,
+    UploadFile
 }
 
 pub struct Application {
@@ -98,7 +112,13 @@ pub struct Application {
     audio_player: AudioPlayer,
     progress: f32,
     progress_source: AM<f32>,
-    is_progress_running: bool
+    is_progress_running: bool,
+
+    // For file selection
+    selected_file: Option<PathBuf>,
+    selected_name: String,
+    selected_artist: String,
+    selected_album: String
 }
 
 impl std::default::Default for Application {
@@ -128,7 +148,11 @@ impl Application {
             audio_player,
             progress: 0f32,
             progress_source,
-            is_progress_running: false
+            is_progress_running: false,
+            selected_file: None,
+            selected_name: String::new(),
+            selected_album: String::new(),
+            selected_artist: String::new(),
         }
     }
 
@@ -345,6 +369,61 @@ impl Application {
                 self.audio_player.fast();
                 Task::none()
             }
+
+            Message::UploadFile => {
+                self.state = State::UploadFile;
+                Task::<Message>::perform(async {
+                    FileDialog::new().pick_file()
+                }, Message::FileSelected)
+            }
+
+            Message::FileSelected(p) => {
+                self.selected_file = p;
+                if self.selected_file.is_none() {
+                    self.state = State::Search
+                }
+                Task::none()
+            }
+
+            Message::NameChanged(s) => {
+                self.selected_name = s;
+                Task::none()
+            }
+
+            Message::ArtistChanged(s) => {
+                self.selected_artist = s;
+                Task::none()
+            }
+
+            Message::AlbumChanged(s) => {
+                self.selected_album = s;
+                Task::none()
+            }
+
+            Message::AttemptAddingSong => {
+                if self.selected_file.is_none() {
+                    self.state = State::Playlist;
+                    return Task::none();
+                }
+
+                let mut song: Song = Song::new(
+                    0, self.selected_name.clone(),
+                    self.selected_artist.clone(),
+                    self.selected_album.clone(),
+                    self.selected_name.clone(),
+                    0, self.selected_file.clone());
+
+                let database = self.database.lock().unwrap();
+                convert_and_save_song(database.get_directory(), &mut song);
+
+                println!("Song path: {}", song.file.as_ref().unwrap().display());
+
+                database.add_song_to_cache(&mut song);
+                database.add_song_to_playlist(&song, self.target_playlist.as_mut().unwrap());
+
+                self.state = State::Playlist;
+                Task::none()
+            }
         };
 
         match self.is_progress_running {
@@ -480,6 +559,39 @@ impl Application {
 
                 let scrollable_song_list: Scrollable<Message> = Scrollable::new(song_columns);
                 widgets.push(scrollable_song_list)
+            }
+
+            State::UploadFile => {
+                let name = match &self.target_playlist {
+                    Some(playlist) => playlist.name.clone(),
+                    None => String::from("404 - Braincell not found.")
+                };
+
+                let widgets = Column::new()
+                    .align_x(Horizontal::Center)
+                    .push(text(name).size(50).color(ResonateColour::text_emphasis()))
+                    .push(
+                        Container::new(text(
+                            match &self.selected_file {
+                                Some(f) => f.to_string_lossy().to_string(),
+                                None => String::from("Select a file to upload.")
+                            }).color(ResonateColour::text_emphasis())
+                        ))
+                    .push(container_field(upload_song_entry(self.selected_name.clone())))
+                    .push(container_field(upload_artist_entry(self.selected_artist.clone())))
+                    .push(container_field(upload_album_entry(self.selected_album.clone())))
+                    .push(button("Add")
+                        .style(|_theme, style| button::Style {
+                            background: Some(match style {
+                                button::Status::Hovered => Background::Color(ResonateColour::darken(ResonateColour::blue())),
+                                _ => Background::Color(ResonateColour::blue())
+                            }),
+                            border: Border::default().rounded(10),
+                            shadow: Shadow::default(),
+                            text_color: ResonateColour::text_emphasis()
+                        })
+                    .on_press(Message::AttemptAddingSong));
+                widgets
             }
         };
 

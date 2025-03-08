@@ -418,6 +418,17 @@ pub fn search_bar(prompt: String, content: &String, toggle: bool) -> Element<'st
             })
             .width(Length::FillPortion(1))
         )
+        .push(button("Upload File")
+        .style(|_theme: &Theme, style| button::Style {
+                background: Some(Background::Color(match style {
+                    button::Status::Hovered => ResonateColour::darken(ResonateColour::blue()),
+                    _ => ResonateColour::blue()
+                })),
+                border: Border::default().rounded(10),
+                shadow: Shadow::default(),
+                text_color: ResonateColour::text_emphasis()
+            })
+        .on_press(Message::UploadFile))
         .align_y(Vertical::Center);
     
     Container::new(widget)
@@ -468,5 +479,31 @@ pub fn playlist_name_widget(prompt: String, content: &String) -> Element<'static
                 .border(Border::default().rounded(15))
         })
         .width(Length::FillPortion(1))
+        .into()
+}
+
+pub fn container_field(elem: Element<'static, Message>) -> Element<'static, Message> {
+    Container::new(elem)
+        .padding(20)
+        .style(|_theme: &Theme| container::Style::default()
+            .background(Background::Color(ResonateColour::foreground())))
+        .into()
+}
+
+pub fn upload_song_entry(content: String) -> Element<'static, Message> {
+    text_input("Enter song name", content.as_str())
+        .on_input(Message::NameChanged)
+        .into()
+}
+
+pub fn upload_artist_entry(content: String) -> Element<'static, Message> {
+    text_input("Enter artist name", content.as_str())
+        .on_input(Message::ArtistChanged)
+        .into()
+}
+
+pub fn upload_album_entry(content: String) -> Element<'static, Message> {
+    text_input("Enter album name", content.as_str())
+        .on_input(Message::AlbumChanged)
         .into()
 }

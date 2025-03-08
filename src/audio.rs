@@ -53,7 +53,7 @@ pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>, pro
             sink.append(source);
         } else if !sink.is_paused() {
             let mut progress = progress.lock().unwrap();
-            *progress += sleep_duration.as_secs() as f32;
+            *progress += (sleep_duration.as_secs() as f32) * sink.speed();
         }
     }
 }
@@ -184,7 +184,7 @@ impl AudioPlayer {
 
     pub fn slow(&self) {
         let sink = self.sink.lock().unwrap();
-        sink.set_speed(0.6);
+        sink.set_speed(0.85);
     }
 
     pub fn fast(&self) {

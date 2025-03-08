@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use crate::music::{Playlist, Song};
 
+
 /// Creates and then returns the path to a suitable location for application data to be stored.
 /// If the path already exists, just return the path.
 pub fn get_application_directory() -> Result<PathBuf, ()> {

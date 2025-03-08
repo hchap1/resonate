@@ -9,6 +9,32 @@ use std::path::PathBuf;
 use crate::application::Message;
 use crate::music::Song;
 
+pub fn convert_and_save_song(directory: PathBuf, song: &mut Song) {
+    let target_pos = directory.join(PathBuf::from(format!("{}.mp3", song.id)));
+    let output = format!("{}/{}.mp3", directory.to_string_lossy().to_string(), song.id);
+    let input = format!("{}", song.file.as_ref().unwrap().to_string_lossy().to_string());
+    let mut handle = Command::new("ffmpeg")
+        .arg("-i")
+        .arg(input)
+        .arg(output)
+        .stdout(Stdio::piped())
+        .spawn().unwrap();
+
+    let stdout = handle.stdout.take().expect("Failed to take stdout.");
+    let mut reader = BufReader::new(stdout);
+    let mut first_line = String::new();
+
+    match reader.read_line(&mut first_line) {
+        Ok(0) => println!("No data"),
+        Ok(_) => println!("Read data"),
+        Err(e) => println!("Error: {e:?}")
+    }
+
+    println!("First line: {first_line}");
+
+    song.file = Some(target_pos);
+}
+
 pub async fn download(directory: PathBuf, mut target: Song) -> Message {
     let task_path = directory.join(PathBuf::from(format!("{}.mp3", target.id)));
     println!("[WORKER] Using task_path {}", task_path.to_string_lossy().to_string());
