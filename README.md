@@ -9,3 +9,4 @@ DEPENDENCIES WINDOWS:</br>
 - sqlite3, winget install SQLite.SQLite
 - chromedriver, winget install Chromium.ChromeDriver
 - chrome, winget install --id Google.Chrome --exact --silent --accept-package-agreements --accept-source-agreements
+- yt-dlp, winget install yt-dlp
