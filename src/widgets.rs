@@ -174,6 +174,48 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, pr
             Message::Skip
         );
 
+    let slow_button = button("Slow")
+        .style(move |_theme: &Theme, style| button::Style {
+            background: match style {
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                _ => Some(Background::Color(ResonateColour::blue()))
+            },
+            border: Border::default().rounded(10),
+            shadow: Shadow::default(),
+            text_color: ResonateColour::text_emphasis(),
+        })
+        .on_press(
+            Message::Slow
+        );
+
+    let normal_button = button("Normal")
+        .style(move |_theme: &Theme, style| button::Style {
+            background: match style {
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                _ => Some(Background::Color(ResonateColour::blue()))
+            },
+            border: Border::default().rounded(10),
+            shadow: Shadow::default(),
+            text_color: ResonateColour::text_emphasis(),
+        })
+        .on_press(
+            Message::Normal
+        );
+
+    let fast_button = button("Fast")
+        .style(move |_theme: &Theme, style| button::Style {
+            background: match style {
+                button::Status::Hovered => Some(Background::Color(ResonateColour::darken(ResonateColour::blue()))),
+                _ => Some(Background::Color(ResonateColour::blue()))
+            },
+            border: Border::default().rounded(10),
+            shadow: Shadow::default(),
+            text_color: ResonateColour::text_emphasis(),
+        })
+        .on_press(
+            Message::Fast
+        );
+
     let title = text(name).color(ResonateColour::text_emphasis()).size(25);
     let artist = text(artist).color(ResonateColour::text());
     let album = text(album).color(ResonateColour::text());
@@ -211,6 +253,9 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, pr
                 .spacing(10)
                 .push(pause_button)
                 .push(skip_button)
+                .push(slow_button)
+                .push(normal_button)
+                .push(fast_button)
         );
 
     let mut queue_col = Column::new()

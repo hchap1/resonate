@@ -39,7 +39,6 @@ use crate::utility::*;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
-    Quit,
     Search,
     SearchBarInput(String),
     SearchResults(Vec<Song>),
@@ -59,7 +58,10 @@ pub enum Message {
     Queue(Song),
     Skip,
     ShuffleCurrent,
-    ProgressUpdate(f32)
+    ProgressUpdate(f32),
+    Slow,
+    Normal,
+    Fast
 }
 
 // The underlying application state
@@ -134,8 +136,6 @@ impl Application {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let task = match message {
-            Message::Quit => iced::exit::<Message>(),
-
             Message::Search => {
                 if self.search_bar.len() == 0 {
                     let mut buf = self.buffer.lock().unwrap();
@@ -328,8 +328,22 @@ impl Application {
             
             Message::ProgressUpdate(v) => {
                 self.progress = v;
-                println!("[RUNTIME] Progress query");
                 Task::<Message>::future(get_progress(self.progress_source.clone()))
+            }
+
+            Message::Slow => {
+                self.audio_player.slow();
+                Task::none()
+            }
+
+            Message::Normal => {
+                self.audio_player.normal();
+                Task::none()
+            }
+
+            Message::Fast => {
+                self.audio_player.fast();
+                Task::none()
             }
         };
 
