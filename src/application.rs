@@ -477,7 +477,7 @@ impl Application {
                     .map(|song| {
                         let is_downloading = self.currently_download_songs.contains(&song);
                         let is_queued = !is_downloading && self.download_queue.contains(&song);
-                        download_song_widget(song.clone(), dir.clone(), is_downloading, is_queued)
+                        download_song_widget(song.clone(), dir.clone(), is_downloading, is_queued, self.target_playlist.as_ref().unwrap().clone())
                     })
                     .collect();
 

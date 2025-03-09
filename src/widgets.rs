@@ -285,7 +285,7 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, pr
         .into()
 }
 
-pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool, is_queued: bool) -> Element<'static, Message> {
+pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool, is_queued: bool, playlist: Playlist) -> Element<'static, Message> {
     let song_clone = song.clone();
 
     let add_button = button("Add to Playlist")
@@ -298,7 +298,7 @@ pub fn download_song_widget(song: Song, directory: PathBuf, is_downloading: bool
             shadow: Shadow::default(),
             text_color: ResonateColour::text_emphasis(),
         })
-        .on_press_with(move || Message::Download(song_clone.clone(), directory.clone()));
+        .on_press_with(move || Message::Download(song_clone.clone(), directory.clone(), playlist.clone()));
 
     let downloaded = text(match song.file.clone() {
         Some(p) => p.to_string_lossy().to_string(),
