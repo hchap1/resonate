@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
-use iced::widget::{ProgressBar, Scrollable};
+use iced::widget::{slider, ProgressBar, Scrollable};
 use iced::alignment::Vertical;
 
 pub struct ResonateColour;
@@ -133,7 +133,7 @@ pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Ele
         .into()
 }
 
-pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, progress: f32) -> Element<'static, Message> {
+pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, progress: f32, volume: f32) -> Element<'static, Message> {
 
     let current_clone = current.clone();
     let (name, artist, album, duration) = match current {
@@ -256,7 +256,8 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, pr
                 .push(slow_button)
                 .push(normal_button)
                 .push(fast_button)
-        );
+        )
+        .push(slider(RangeInclusive::new(0f32, 100f32), volume, Message::SetVolume));
 
     let mut queue_col = Column::new()
         .spacing(20);

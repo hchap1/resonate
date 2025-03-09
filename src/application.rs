@@ -51,7 +51,7 @@ pub enum Message {
     SearchResults(Vec<Song>),
     DumpDB,
     ToggleYTSearch(bool),
-    Download(Song, PathBuf),
+    Download(Song, PathBuf, Playlist),
     SuccessfulDownload(Song),
     SearchPlaylists,
     NewPlaylist,
@@ -74,7 +74,8 @@ pub enum Message {
     NameChanged(String),
     ArtistChanged(String),
     AlbumChanged(String),
-    AttemptAddingSong
+    AttemptAddingSong,
+    SetVolume(f32)
 }
 
 // The underlying application state
@@ -205,27 +206,30 @@ impl Application {
                 Task::none()
             }
 
-            Message::Download(s, d) => {
+            Message::Download(s, d, mut p) => {
 
-                println!("DOWNLOAD REQUEST FOR: {}", s.name);
-
+                let update_playlist = match self.target_playlist.as_ref() {
+                    Some(playlist) => playlist.id == p.id,
+                    None => false
+                };
+    
                 if self.currently_download_songs.contains(&s) || s.file.is_some() || self.download_queue.contains(&s) {
                     if s.file.is_some() {
                         let database = self.database.lock().unwrap();
-                        database.add_song_to_playlist(&s, &mut self.target_playlist.as_mut().unwrap());
-                        println!("Added to playlist.");
+                        match update_playlist {
+                            true => database.add_song_to_playlist(&s, self.target_playlist.as_mut().unwrap()),
+                            false => database.add_song_to_playlist(&s, &mut p)
+                        };
                     }
-                    println!("Refused request.");
                     return Task::none()
                 }
 
                 if self.currently_download_songs.len() >= 4 {
                     if !self.download_queue.contains(&s) { self.download_queue.push(s); }
-                    println!("Queued, workers occupied.");
                     Task::none()
                 } else {
                     self.currently_download_songs.insert(s.clone());
-                    println!("Downloading.");
+                    println!("[DOWNLOADER] Downloading {}", s.name);
                     Task::future(download(d, s)).map(|msg| msg)
                 }
             }
@@ -424,6 +428,11 @@ impl Application {
                 self.state = State::Playlist;
                 Task::none()
             }
+
+            Message::SetVolume(v) => {
+                self.audio_player.set_volume(v);
+                Task::none()
+            }
         };
 
         match self.is_progress_running {
@@ -595,13 +604,18 @@ impl Application {
             }
         };
 
+        println!("[VIEW] Volume: {}", self.audio_player.get_volume());
+
         let display_split = Row::new()
             .align_y(Vertical::Top)
             .spacing(10)
             .push(widgets.width(Length::FillPortion(2)))
             .push(
-                queue_widget(self.audio_player.get_current(), self.audio_player.get_queue(), self.audio_player.is_paused(), self.progress
-            ));
+                queue_widget(self.audio_player.get_current(),
+                    self.audio_player.get_queue(),
+                    self.audio_player.is_paused(),
+                    self.progress,
+                    self.audio_player.get_volume()));
 
         Container::new(display_split)
             .padding(20)

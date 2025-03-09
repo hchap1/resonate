@@ -201,6 +201,16 @@ impl AudioPlayer {
     }
     
     pub fn get_progress_source(&self) -> AM<f32> { self.progress.clone() }
+
+    pub fn get_volume(&self) -> f32 {
+        let sink = self.sink.lock().unwrap();
+        sink.volume() * 400f32
+    }
+
+    pub fn set_volume(&self, volume: f32) {
+        let sink = self.sink.lock().unwrap();
+        sink.set_volume(volume / 400f32)
+    }
 }
 
 pub async fn get_progress(progress_source: AM<f32>) -> Message {
