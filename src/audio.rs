@@ -204,12 +204,12 @@ impl AudioPlayer {
 
     pub fn get_volume(&self) -> f32 {
         let sink = self.sink.lock().unwrap();
-        sink.volume() * 400f32
+        sink.volume() * 200f32
     }
 
     pub fn set_volume(&self, volume: f32) {
         let sink = self.sink.lock().unwrap();
-        sink.set_volume(volume / 400f32)
+        sink.set_volume(volume / 200f32)
     }
 }
 
