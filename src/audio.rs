@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::collections::VecDeque;
+use std::os::unix::fs::MetadataExt;
+use std::path::PathBuf;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::thread::sleep;
@@ -10,6 +12,7 @@ use rodio::Sink;
 use rodio::Decoder;
 use rodio::OutputStream;
 use rodio::OutputStreamHandle;
+use rodio::Source;
 
 use crate::application::Message;
 use crate::utility::*;
@@ -204,4 +207,14 @@ pub async fn get_progress(progress_source: AM<f32>) -> Message {
     let progress = progress_source.lock().unwrap();
     sleep(Duration::from_secs(1));
     Message::ProgressUpdate(*progress)
+}
+
+pub fn query_song_length(path: &PathBuf) -> usize {
+    let file = File::open(path).expect("Failed to open file");
+    println!("Read file, length: {}", file.metadata().unwrap().size());
+    let reader = BufReader::new(file);
+    let decoder = Decoder::new(reader).expect("Failed to decode file");
+    let sample_rate = decoder.sample_rate() as f64;
+    let num_samples = decoder.total_duration().unwrap_or_default().as_secs_f64() * sample_rate;
+    (num_samples / sample_rate).round() as usize
 }

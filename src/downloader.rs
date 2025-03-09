@@ -7,30 +7,22 @@ use std::process::Stdio;
 use std::path::PathBuf;
 
 use crate::application::Message;
+use crate::audio::query_song_length;
 use crate::music::Song;
 
 pub fn convert_and_save_song(directory: PathBuf, song: &mut Song) {
     let target_pos = directory.join(PathBuf::from(format!("{}.mp3", song.id)));
     let output = format!("{}/{}.mp3", directory.to_string_lossy().to_string(), song.id);
     let input = format!("{}", song.file.as_ref().unwrap().to_string_lossy().to_string());
-    let mut handle = Command::new("ffmpeg")
+
+    song.duration = query_song_length(song.file.as_ref().unwrap());
+
+    let _ = Command::new("ffmpeg")
         .arg("-i")
         .arg(input)
         .arg(output)
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .spawn().unwrap();
-
-    let stdout = handle.stdout.take().expect("Failed to take stdout.");
-    let mut reader = BufReader::new(stdout);
-    let mut first_line = String::new();
-
-    match reader.read_line(&mut first_line) {
-        Ok(0) => println!("No data"),
-        Ok(_) => println!("Read data"),
-        Err(e) => println!("Error: {e:?}")
-    }
-
-    println!("First line: {first_line}");
 
     song.file = Some(target_pos);
 }
@@ -139,11 +131,10 @@ pub fn search_youtube_music(query: String, directory: PathBuf) -> Result<Vec<Son
         let album = lines.remove(0);
         lines.remove(0);
         let timestr = lines.remove(0);
+        println!("TIMESTR: {timestr}");
         let time = match timestr.contains(':') {
-            true => timestr.split(':').map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>(),
-            false => {
-                vec![0, 0]
-            }
+            true => timestr.split(':').map(|x| x.parse::<usize>().unwrap_or(0)).collect::<Vec<usize>>(),
+            false => { vec![0, 0] }
         };
         let duration = time[0] * 60 + time[1];
         if duration != 0 { let _plays = lines.remove(0); }
