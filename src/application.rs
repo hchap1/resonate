@@ -417,6 +417,11 @@ impl Application {
                     self.selected_name.clone(),
                     0, self.selected_file.clone());
 
+                self.selected_name.clear();
+                self.selected_artist.clear();
+                self.selected_file = None;
+                self.selected_album.clear();
+
                 let database = self.database.lock().unwrap();
                 convert_and_save_song(database.get_directory(), &mut song);
 

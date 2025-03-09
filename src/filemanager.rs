@@ -104,8 +104,8 @@ impl Database {
 
     pub fn search_cached_song(&self, query: String) -> Vec<Song> {
         let like_query = format!("%{query}%");
-        let mut pattern = self.connection.prepare("SELECT * FROM Songs WHERE name LIKE ? OR artist LIKE ?").unwrap();
-        pattern.query_map(params![like_query, like_query], |row| {
+        let mut pattern = self.connection.prepare("SELECT * FROM Songs WHERE name LIKE ? OR artist LIKE ? OR album LIKE ?").unwrap();
+        pattern.query_map(params![like_query, like_query, like_query], |row| {
             Ok({
                 let sql_id = row.get::<_, usize>(0).unwrap();
                 let id = row.get::<_, String>(1).unwrap();
