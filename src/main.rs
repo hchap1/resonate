@@ -9,5 +9,7 @@ mod audio;
 use crate::application::Application;
 
 fn main() -> iced::Result {
-    iced::run("Resonate", Application::update, Application::view)
+    iced::application("Resonate", Application::update, Application::view)
+        .subscription(|_| Application::keyboard_subscription())
+        .run()
 }

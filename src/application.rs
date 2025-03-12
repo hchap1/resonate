@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+use iced::keyboard;
 use iced::alignment::Horizontal;
 use iced::alignment::Vertical;
 use iced::widget::Row;
@@ -10,6 +11,7 @@ use iced::widget::container;
 use iced::widget::Column;
 use iced::widget::button;
 use iced::widget::text;
+use iced::Subscription;
 use iced::Background;
 use iced::Element;
 use iced::Length;
@@ -75,7 +77,9 @@ pub enum Message {
     ArtistChanged(String),
     AlbumChanged(String),
     AttemptAddingSong,
-    SetVolume(f32)
+    SetVolume(f32),
+    PauseClicked,
+    DebugPrint(String)
 }
 
 // The underlying application state
@@ -438,6 +442,21 @@ impl Application {
                 self.audio_player.set_volume(v);
                 Task::none()
             }
+
+            Message::PauseClicked => {
+                println!("PAUSE CLICKED");
+                if self.audio_player.is_paused() {
+                    self.audio_player.resume();
+                } else {
+                    self.audio_player.pause();
+                }
+                Task::none()
+            }
+
+            Message::DebugPrint(s) => {
+                println!("[DEBUG] {s}");
+                Task::none()
+            }
         };
 
         match self.is_progress_running {
@@ -632,5 +651,25 @@ impl Application {
             .height(Length::Fill)
             .width(Length::Fill)
             .into()
+    }
+
+    pub fn keyboard_subscription() -> Subscription<Message> {
+        keyboard::on_key_press(
+            |key, _mod|
+            match key {
+                keyboard::Key::Named(k) => {
+                    match k {
+                        keyboard::key::Named::MediaPause => Some(Message::Pause),
+                        keyboard::key::Named::MediaPlay => Some(Message::Resume),
+                        keyboard::key::Named::MediaPlayPause => Some(Message::PauseClicked),
+                        keyboard::key::Named::MediaTrackNext => Some(Message::Skip),
+                        keyboard::key::Named::Space => Some(Message::PauseClicked),
+                        keyboard::key::Named::ArrowRight => Some(Message::Skip),
+                        _ => None
+                    }
+                }
+                _ => None
+            }
+        )
     }
 }
