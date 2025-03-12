@@ -79,7 +79,8 @@ pub enum Message {
     AttemptAddingSong,
     SetVolume(f32),
     PauseClicked,
-    DebugPrint(String)
+    DebugPrint(String),
+    SetLooping(bool)
 }
 
 // The underlying application state
@@ -123,7 +124,7 @@ pub struct Application {
     selected_file: Option<PathBuf>,
     selected_name: String,
     selected_artist: String,
-    selected_album: String
+    selected_album: String,
 }
 
 impl std::default::Default for Application {
@@ -145,7 +146,7 @@ impl Application {
             buffer: sync(vec![]),
             search_bar: String::new(),
             active_search_threads: 0,
-            use_online_search: false,
+            use_online_search: true,
             currently_download_songs: HashSet::<Song>::new(),
             download_queue: Vec::<Song>::new(),
             target_playlist: None,
@@ -457,6 +458,11 @@ impl Application {
                 println!("[DEBUG] {s}");
                 Task::none()
             }
+
+            Message::SetLooping(b) => {
+                self.audio_player.set_looping(b);
+                Task::none()
+            }
         };
 
         match self.is_progress_running {
@@ -639,7 +645,8 @@ impl Application {
                     self.audio_player.get_queue(),
                     self.audio_player.is_paused(),
                     self.progress,
-                    self.audio_player.get_volume()));
+                    self.audio_player.get_volume(),
+                    self.audio_player.is_looping()));
 
         Container::new(display_split)
             .padding(20)

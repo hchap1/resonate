@@ -133,7 +133,7 @@ pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Ele
         .into()
 }
 
-pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, progress: f32, volume: f32) -> Element<'static, Message> {
+pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, progress: f32, volume: f32, is_looping: bool) -> Element<'static, Message> {
 
     let current_clone = current.clone();
     let (name, artist, album, duration) = match current {
@@ -256,6 +256,18 @@ pub fn queue_widget(current: Option<Song>, queue: Vec<Song>, is_paused: bool, pr
                 .push(slow_button)
                 .push(normal_button)
                 .push(fast_button)
+                .push(toggler(is_looping)
+                    .on_toggle(Message::SetLooping)
+                .style(move |_theme: &Theme, _style| toggler::Style {
+                    background: ResonateColour::background(),
+                    background_border_width: 0f32,
+                    background_border_color: ResonateColour::background(),
+                    foreground: if is_looping { ResonateColour::green() } else { ResonateColour::red() },
+                    foreground_border_width: 0f32,
+                    foreground_border_color: ResonateColour::foreground()
+                })
+                .size(30)
+            )
         )
         .push(slider(RangeInclusive::new(0f32, 100f32), volume, Message::SetVolume));
 

@@ -28,15 +28,17 @@ pub struct AudioPlayer {
     sink: AM<Sink>,
     queue: AMQ<Song>,
     current: AMO<Song>,
-    progress: AM<f32>
+    progress: AM<f32>,
+    looping_song: AM<bool>
 }
 
-pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>, progress: AM<f32>) {
+pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>, progress: AM<f32>, looping_song: AM<bool>) {
     let sleep_duration = Duration::from_secs(1);
     loop {
         sleep(sleep_duration);
 
         let sink = sink.lock().unwrap();
+        let looping_song = looping_song.lock().unwrap();
 
         // If we need to queue the next song
         if sink.empty() {
@@ -44,7 +46,7 @@ pub fn queueing_thread(sink: AM<Sink>, queue: AMQ<Song>, current: AMO<Song>, pro
             *progress = 0f32;
             let mut queue = queue.lock().unwrap();
             let mut current = current.lock().unwrap();
-            *current = queue.pop_front();
+            if !*looping_song { *current = queue.pop_front(); }
 
             let song = match current.as_ref() {
                 Some(song_ref) => song_ref.clone(),
@@ -79,13 +81,15 @@ impl AudioPlayer {
         let queue = sync(VecDeque::new());
         let current = sync(None);
         let progress = sync(0f32);
+        let looping_song = sync(false);
 
         let sink_clone = sink.clone();
         let queue_clone = queue.clone();
         let current_clone = current.clone();
         let progress_clone = progress.clone();
+        let looping_song_clone = looping_song.clone();
 
-        let _queue_handle = spawn(move || queueing_thread(sink_clone, queue_clone, current_clone, progress_clone));
+        let _queue_handle = spawn(move || queueing_thread(sink_clone, queue_clone, current_clone, progress_clone, looping_song_clone));
 
         Ok(Self {
             _stream: stream,
@@ -94,7 +98,8 @@ impl AudioPlayer {
             queue,
             current,
             _queue_handle,
-            progress
+            progress,
+            looping_song
         })
     }
 
@@ -210,6 +215,16 @@ impl AudioPlayer {
     pub fn set_volume(&self, volume: f32) {
         let sink = self.sink.lock().unwrap();
         sink.set_volume(volume / 200f32)
+    }
+
+    pub fn is_looping(&self) -> bool {
+        let looping = self.looping_song.lock().unwrap();
+        *looping
+    }
+
+    pub fn set_looping(&mut self, do_looping: bool) {
+        let mut looping = self.looping_song.lock().unwrap();
+        *looping = do_looping;
     }
 }
 
