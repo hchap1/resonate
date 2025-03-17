@@ -24,6 +24,7 @@ use rand::rng;
 use rand::seq::SliceRandom;
 use rfd::FileDialog;
 
+use crate::filemanager::download_thumbnail;
 use crate::audio::get_progress;
 use crate::downloader::convert_and_save_song;
 use crate::music::{Song, local_search, cloud_search};
@@ -80,7 +81,10 @@ pub enum Message {
     SetVolume(f32),
     PauseClicked,
     DebugPrint(String),
-    SetLooping(bool)
+    SetLooping(bool),
+    CheckAllIcons,
+    DownloadThumbnail(Song),
+    ThumbnailDownloaded
 }
 
 // The underlying application state
@@ -463,6 +467,34 @@ impl Application {
                 self.audio_player.set_looping(b);
                 Task::none()
             }
+
+            Message::CheckAllIcons => {
+                println!("Copping icons.");
+                let database = self.database.lock().unwrap();
+                Task::batch(database.retrieve_all_songs().into_iter().filter_map(
+                    |song|
+                    match song.file.as_ref() {
+                        Some(f) => {
+                            let thumbnail_path = f.parent().unwrap().join(format!("{}.png", song.id));
+                            if thumbnail_path.exists() || song.id == song.name {
+                                None
+                            } else {
+                                Some(Task::done(Message::DownloadThumbnail(song)))
+                            }
+                        }
+                        None => None
+                    }
+                ).collect::<Vec<Task<Message>>>())
+            }
+
+            Message::DownloadThumbnail(s) => {
+                let database = self.database.lock().unwrap();
+                Task::future(download_thumbnail(database.get_directory(), s.id.clone()))
+            }
+            
+            Message::ThumbnailDownloaded => {
+                Task::none()
+            }
         };
 
         match self.is_progress_running {
@@ -586,10 +618,15 @@ impl Application {
                         })
                         .on_press(Message::ShuffleCurrent)));
 
+                let path = {
+                    let database = self.database.lock().unwrap();
+                    database.get_directory()
+                };
+
                 let songs: Vec<Element<Message>> = self.target_playlist.as_ref().unwrap().songs.as_ref().unwrap()
                     .iter()
                     .map(|song| {
-                        display_song_widget(song.clone(), self.audio_player.is_this_playing(&song), self.audio_player.is_paused())
+                        display_song_widget(song.clone(), self.audio_player.is_this_playing(&song), self.audio_player.is_paused(), path.join(format!("{}.png", song.id)))
                     })
                     .collect();
 

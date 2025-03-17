@@ -1,10 +1,10 @@
-use std::fs::create_dir_all;
+use std::{fs::create_dir_all, process::Command};
 use std::collections::HashSet;
 use directories::ProjectDirs;
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
 
-use crate::music::{Playlist, Song};
+use crate::{application::Message, music::{Playlist, Song}};
 
 
 /// Creates and then returns the path to a suitable location for application data to be stored.
@@ -82,8 +82,8 @@ impl Database {
                 row.get::<_, usize>(0).unwrap(),
                 row.get(2).unwrap(),
                 row.get(3).unwrap(),
-                id,
                 row.get(4).unwrap(),
+                id,
                 row.get::<_, usize>(5).unwrap(),
                 file
             ))
@@ -215,4 +215,27 @@ impl Database {
             None => playlist.songs = Some(vec![song.clone()])
         }
     }
+}
+
+pub async fn download_thumbnail(directory: PathBuf, id: String) -> Message {
+    let path = directory.join(&id).to_string_lossy().to_string();
+
+    let mut handle = Command::new("yt-dlp")
+        .arg("--write-thumbnail")
+        .arg("--skip-download")
+        .arg(format!("https://music.youtube.com/watch?v={}", id))
+        .arg("-o")
+        .arg(path.clone())
+        .spawn().unwrap();
+
+    let _ = handle.wait();
+
+    let raw = image::open(directory.join(&id).join(".webp")).unwrap();
+    let height = raw.height();
+    let padding = (raw.width() - height)/2;
+    let cropped = raw.crop_imm(padding, 0, height, height);
+    let _ = cropped.save(directory.join(&id).join(".png"));
+    let _ = std::fs::remove_file(PathBuf::from(path).join(".webp"));
+
+    Message::ThumbnailDownloaded
 }

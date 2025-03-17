@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
-use iced::widget::{slider, ProgressBar, Scrollable};
+use iced::widget::{slider, ProgressBar, Scrollable, image};
 use iced::alignment::Vertical;
 
 pub struct ResonateColour;
@@ -63,7 +63,7 @@ pub fn playlist_widget(playlist: Playlist) -> Element<'static, Message> {
         .into()
 }
 
-pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Element<'static, Message> {
+pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool, image_path: PathBuf) -> Element<'static, Message> {
     let song_clone = song.clone();
     let second_song_clone = song.clone();
 
@@ -106,13 +106,14 @@ pub fn display_song_widget(song: Song, is_playing: bool, is_paused: bool) -> Ele
     let album = text(song.album).color(ResonateColour::text());
     let duration = text(format!("{} seconds", song.duration)).color(ResonateColour::text());
 
-    let row = Row::new()
-        .spacing(30)
-        .push(
-            Column::new()
-                .push(title)
-                .push(artist)
-                .width(Length::FillPortion(3))
+    let row = match image_path.exists() {
+        true => Row::new().spacing(30).push(image(image_path)),
+        false => Row::new().spacing(30)
+    }.push(
+        Column::new()
+            .push(title)
+            .push(artist)
+            .width(Length::FillPortion(3))
         )
         .push(album.width(Length::FillPortion(2)))
         .push(duration.width(Length::FillPortion(1)))
