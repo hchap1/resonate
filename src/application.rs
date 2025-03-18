@@ -477,7 +477,11 @@ impl Application {
                         Some(f) => {
                             let thumbnail_path = f.parent().unwrap().join(format!("{}.png", song.id));
                             if thumbnail_path.exists() || song.id == song.name {
-                                None
+                                if song.id == song.name && !thumbnail_path.exists() {
+                                    Some(Task::future(fake_icon(database.get_directory(), song.id)))
+                                } else {
+                                    None
+                                }
                             } else {
                                 Some(Task::done(Message::DownloadThumbnail(song)))
                             }

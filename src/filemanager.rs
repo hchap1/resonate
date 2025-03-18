@@ -230,12 +230,13 @@ pub async fn download_thumbnail(directory: PathBuf, id: String) -> Message {
 
     let _ = handle.wait();
 
-    let raw = image::open(directory.join(&id).join(".webp")).unwrap();
+    let webp_path = directory.join(format!("{id}.webp"));
+    let raw = image::open(&webp_path).unwrap();
     let height = raw.height();
     let padding = (raw.width() - height)/2;
-    let cropped = raw.crop_imm(padding, 0, height, height);
-    let _ = cropped.save(directory.join(&id).join(".png"));
-    let _ = std::fs::remove_file(PathBuf::from(path).join(".webp"));
+    let cropped = raw.crop_imm(padding, 0, height, height).resize(64, 64, image::imageops::FilterType::Nearest);
+    let _ = cropped.save(directory.join(format!("{id}.png")));
+    let _ = std::fs::remove_file(webp_path);
 
     Message::ThumbnailDownloaded
 }
